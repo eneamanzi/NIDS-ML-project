@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+.venv
+venv/
+env/
+*.egg-info/
+
+# Data (troppo grandi per Git)
+data/raw/*.txt
+data/raw/*.csv
+data/processed/*.pkl
+*.pcap
+
+# Models (salva solo i migliori)
+models/*.pkl
+!models/best_model.pkl
+
+# Logs
+logs/*.jsonl
+logs/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets
+.env
+config_secret.yaml

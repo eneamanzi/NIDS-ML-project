@@ -1,576 +1,591 @@
-# """
-# Preprocessing pipeline per NSL-KDD dataset.
-# """
-
-# import pandas as pd
-# import numpy as np
-# from sklearn.preprocessing import LabelEncoder, StandardScaler
-# import joblib
-
-# # Definizione colonne (globale per consistenza)
-# COLUMN_NAMES = [
-#     'duration', 'protocol_type', 'service', 'flag', 'src_bytes',
-#     'dst_bytes', 'land', 'wrong_fragment', 'urgent', 'hot',
-#     'num_failed_logins', 'logged_in', 'num_compromised', 'root_shell',
-#     'su_attempted', 'num_root', 'num_file_creations', 'num_shells',
-#     'num_access_files', 'num_outbound_cmds', 'is_host_login',
-#     'is_guest_login', 'count', 'srv_count', 'serror_rate',
-#     'srv_serror_rate', 'rerror_rate', 'srv_rerror_rate',
-#     'same_srv_rate', 'diff_srv_rate', 'srv_diff_host_rate',
-#     'dst_host_count', 'dst_host_srv_count', 'dst_host_same_srv_rate',
-#     'dst_host_diff_srv_rate', 'dst_host_same_src_port_rate',
-#     'dst_host_srv_diff_host_rate', 'dst_host_serror_rate',
-#     'dst_host_srv_serror_rate', 'dst_host_rerror_rate',
-#     'dst_host_srv_rerror_rate', 'label', 'difficulty'
-# ]
-
-# # Features categoriche
-# CATEGORICAL_FEATURES = ['protocol_type', 'service', 'flag']
-
-
-# def load_nsl_kdd(filepath, binary=True):
-#     """
-#     Carica dataset NSL-KDD.
-    
-#     Args:
-#         filepath: Path al file .txt
-#         binary: Se True, converti a Normal (0) vs Anomaly (1)
-    
-#     Returns:
-#         DataFrame pandas
-#     """
-#     df = pd.read_csv(filepath, names=COLUMN_NAMES)
-    
-#     if binary:
-#         df['label'] = df['label'].apply(lambda x: 0 if x == 'normal' else 1)
-    
-#     # Rimuovi colonna difficulty (non utile per training)
-#     df = df.drop('difficulty', axis=1)
-    
-#     print(f"Loaded {len(df)} samples from {filepath}")
-#     print(f"Class distribution:\n{df['label'].value_counts()}\n")
-    
-#     return df
-
-
-# def encode_categorical(df, encoders=None, fit=True):
-#     """
-#     Encoding features categoriche con LabelEncoder.
-    
-#     Args:
-#         df: DataFrame
-#         encoders: Dict con LabelEncoder già fitted (per test set)
-#         fit: Se True, fit encoders su df. Se False, usa encoders passati
-    
-#     Returns:
-#         df_encoded, encoders_dict
-#     """
-#     df_encoded = df.copy()
-    
-#     if encoders is None:
-#         encoders = {}
-    
-#     for col in CATEGORICAL_FEATURES:
-#         if fit:
-#             le = LabelEncoder()
-#             df_encoded[col] = le.fit_transform(df[col])
-#             encoders[col] = le
-#         else:
-#             # Usa encoder già fitted (test set)
-#             le = encoders[col]
-#             # Gestisci valori non visti nel training
-#             df_encoded[col] = df[col].apply(
-#                 lambda x: le.transform([x])[0] if x in le.classes_ else -1
-#             )
-    
-#     return df_encoded, encoders
-
-
-# def normalize_features(X, scaler=None, fit=True):
-#     """
-#     Normalizzazione con StandardScaler (media=0, std=1).
-    
-#     Args:
-#         X: Array numpy o DataFrame (solo features numeriche)
-#         scaler: StandardScaler già fitted
-#         fit: Se True, fit scaler
-    
-#     Returns:
-#         X_scaled, scaler
-#     """
-#     if scaler is None:
-#         scaler = StandardScaler()
-    
-#     if fit:
-#         X_scaled = scaler.fit_transform(X)
-#     else:
-#         X_scaled = scaler.transform(X)
-    
-#     return X_scaled, scaler
-
-
-# def preprocess_nsl_kdd(train_path, test_path, save_dir='../data/processed'):
-#     """
-#     Pipeline completa: load → encode → normalize → save.
-    
-#     Args:
-#         train_path: Path a KDDTrain+.txt
-#         test_path: Path a KDDTest+.txt
-#         save_dir: Dove salvare dati preprocessati
-    
-#     Returns:
-#         X_train, X_test, y_train, y_test, encoders, scaler
-#     """
-#     print("="*60)
-#     print("PREPROCESSING NSL-KDD DATASET")
-#     print("="*60)
-    
-#     # 1. Load
-#     print("\n[1/4] Loading data...")
-#     train_df = load_nsl_kdd(train_path)
-#     test_df = load_nsl_kdd(test_path)
-    
-#     # 2. Encode categorical
-#     print("[2/4] Encoding categorical features...")
-#     train_encoded, encoders = encode_categorical(train_df, fit=True)
-#     test_encoded, _ = encode_categorical(test_df, encoders=encoders, fit=False)
-    
-#     # 3. Separa features e labels
-#     X_train = train_encoded.drop('label', axis=1).values
-#     y_train = train_encoded['label'].values
-#     X_test = test_encoded.drop('label', axis=1).values
-#     y_test = test_encoded['label'].values
-    
-#     print(f"X_train shape: {X_train.shape}")
-#     print(f"X_test shape: {X_test.shape}")
-    
-#     # 4. Normalize
-#     print("[3/4] Normalizing features...")
-#     X_train_scaled, scaler = normalize_features(X_train, fit=True)
-#     X_test_scaled, _ = normalize_features(X_test, scaler=scaler, fit=False)
-    
-#     # 5. Save
-#     print("[4/4] Saving preprocessed data...")
-#     import os
-#     os.makedirs(save_dir, exist_ok=True)
-    
-#     joblib.dump(X_train_scaled, f'{save_dir}/X_train.pkl')
-#     joblib.dump(X_test_scaled, f'{save_dir}/X_test.pkl')
-#     joblib.dump(y_train, f'{save_dir}/y_train.pkl')
-#     joblib.dump(y_test, f'{save_dir}/y_test.pkl')
-#     joblib.dump(encoders, f'{save_dir}/encoders.pkl')
-#     joblib.dump(scaler, f'{save_dir}/scaler.pkl')
-    
-#     print(f"\n✅ Preprocessing complete! Saved to {save_dir}/")
-#     print("="*60)
-    
-#     return X_train_scaled, X_test_scaled, y_train, y_test, encoders, scaler
-
-
-# # Test standalone
-# if __name__ == '__main__':
-#     preprocess_nsl_kdd(
-#         train_path='../data/raw/KDDTrain+.txt',
-#         test_path='../data/raw/KDDTest+.txt'
-#     )
-
-
 """
-Preprocessing pipeline per CICIoT2023 dataset.
+Advanced Data Processing per CICIoT2023 con Macro-Categorie.
 
-Dataset Info:
-- 46 features numeriche estratte da flussi IoT
-- 33 tipi di attacco + Benign
-- ~46 milioni di record (dataset completo)
-- Format: Multiple CSV files (part-*.csv)
+Features:
+- Mapping 34 classi → 7-8 macro-categorie
+- Doppia label: y_macro (training) + y_specific (logging/dashboard)
+- Anti-leakage: fit solo su train, transform su test/val
+- Gestione memoria ottimizzata per dataset grandi
+- Output: 3 dataset processati + artifacts (scaler, encoder)
 
-Pipeline:
-1. Load & merge CSV files (con sampling opzionale)
-2. Handle missing/infinite values
-3. Binary label encoding (Normal=0, Anomaly=1)
-4. Feature normalization (StandardScaler)
-5. Train/test split
-6. Save preprocessed data
+Usage:
+    python src/data_processing.py --train-path data/raw/train.csv \\
+                                   --test-path data/raw/test.csv \\
+                                   --val-path data/raw/val.csv
 """
 
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import joblib
-import glob
 import os
-from tqdm import tqdm
+import json
+from pathlib import Path
+import warnings
+warnings.filterwarnings('ignore')
 
 
-def load_ciciot2023(data_dir, sample_size=None, random_state=42):
+# =============================================================================
+# CONFIGURAZIONE MAPPING ATTACCHI → MACRO-CATEGORIE
+# =============================================================================
+
+ATTACK_MAPPING = {
+    # === DDoS (12 varianti) ===
+    'DDoS-ICMP_Flood': 'DDoS',
+    'DDoS-UDP_Flood': 'DDoS',
+    'DDoS-TCP_Flood': 'DDoS',
+    'DDoS-PSHACK_Flood': 'DDoS',
+    'DDoS-RSTFINFlood': 'DDoS',
+    'DDoS-SYN_Flood': 'DDoS',
+    'DDoS-SynonymousIP_Flood': 'DDoS',
+    'DDoS-ICMP_Fragmentation': 'DDoS',
+    'DDoS-UDP_Fragmentation': 'DDoS',
+    'DDoS-ACK_Fragmentation': 'DDoS',
+    'DDoS-HTTP_Flood': 'DDoS',
+    'DDoS-SlowLoris': 'DDoS',
+    
+    # === DoS (4 varianti) ===
+    'DoS-UDP_Flood': 'DoS',
+    'DoS-TCP_Flood': 'DoS',
+    'DoS-SYN_Flood': 'DoS',
+    'DoS-HTTP_Flood': 'DoS',
+    
+    # === Mirai (3 varianti) ===
+    'Mirai-greeth_flood': 'Mirai',
+    'Mirai-udpplain': 'Mirai',
+    'Mirai-greip_flood': 'Mirai',
+    
+    # === Spoofing (2 varianti) ===
+    'MITM-ArpSpoofing': 'Spoofing',
+    'DNS_Spoofing': 'Spoofing',
+    
+    # === Recon (5 varianti) ===
+    'Recon-HostDiscovery': 'Recon',
+    'Recon-OSScan': 'Recon',
+    'Recon-PortScan': 'Recon',
+    'Recon-PingSweep': 'Recon',
+    'VulnerabilityScan': 'Recon',
+    
+    # === Web (5 varianti) ===
+    'SqlInjection': 'Web',
+    'XSS': 'Web',
+    'CommandInjection': 'Web',
+    'Uploading_Attack': 'Web',
+    'BrowserHijacking': 'Web',
+    
+    # === BruteForce (1 variante) ===
+    'DictionaryBruteForce': 'BruteForce',
+    
+    # === Backdoor (1 variante) ===
+    'Backdoor_Malware': 'Backdoor',
+    
+    # === Benign ===
+    'BenignTraffic': 'Benign'
+}
+
+# Ordine macro-categorie (per encoding consistente)
+MACRO_CATEGORIES = ['Benign', 'DDoS', 'DoS', 'Mirai', 'Recon', 'Web', 'Spoofing', 'BruteForce', 'Backdoor']
+
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+def print_header(text):
+    """Stampa header formattato."""
+    print("\n" + "="*80)
+    print(text.center(80))
+    print("="*80 + "\n")
+
+
+def print_section(text):
+    """Stampa section formattato."""
+    print("\n" + "-"*80)
+    print(text)
+    print("-"*80)
+
+
+def save_json(data, filepath):
+    """Salva dictionary come JSON."""
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ Saved: {filepath}")
+
+
+# =============================================================================
+# CORE PROCESSING FUNCTIONS
+# =============================================================================
+
+def load_dataset(filepath, nrows=None, label_col='label'):
     """
-    Carica dataset CICIoT2023 da file CSV multipli.
+    Carica dataset CSV con gestione memoria ottimizzata.
     
     Args:
-        data_dir: Directory contenente i file part-*.csv
-        sample_size: Se specificato, carica solo N righe per file (utile per testing)
-        random_state: Seed per riproducibilità
+        filepath: Path al CSV
+        nrows: Limite righe (per testing)
+        label_col: Nome colonna label
     
     Returns:
-        DataFrame pandas
+        DataFrame, feature_columns
     """
-    print("="*80)
-    print("LOADING CICIoT2023 DATASET")
-    print("="*80)
+    print(f"Loading: {filepath}")
     
-    # Trova tutti i CSV files
-    csv_files = sorted(glob.glob(f'{data_dir}/*.csv'))
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
     
-    if not csv_files:
-        raise FileNotFoundError(
-            f"No CSV files found in {data_dir}\n"
-            f"Download dataset from:\n"
-            f"  - https://www.unb.ca/cic/datasets/iotdataset-2023.html\n"
-            f"  - https://www.kaggle.com/datasets/himadri07/ciciot2023"
-        )
+    # Carica dataset
+    if nrows:
+        df = pd.read_csv(filepath, nrows=nrows)
+        print(f"  Sample loaded: {len(df):,} rows (limit: {nrows:,})")
+    else:
+        df = pd.read_csv(filepath)
+        print(f"  Loaded: {len(df):,} rows")
     
-    print(f"Found {len(csv_files)} CSV files")
+    # Identifica colonne feature (tutte tranne label)
+    if label_col not in df.columns:
+        raise ValueError(f"Label column '{label_col}' not found in dataset!")
     
-    # Carica e concatena
-    dfs = []
-    total_rows = 0
+    feature_cols = [col for col in df.columns if col != label_col]
     
-    for csv_file in tqdm(csv_files, desc="Loading CSV files"):
-        try:
-            if sample_size:
-                df_chunk = pd.read_csv(csv_file, nrows=sample_size)
-            else:
-                df_chunk = pd.read_csv(csv_file)
-            
-            dfs.append(df_chunk)
-            total_rows += len(df_chunk)
-            
-            # Per dataset grandi, stampa progress
-            if total_rows % 1000000 == 0:
-                print(f"  Loaded {total_rows:,} rows so far...")
-                
-        except Exception as e:
-            print(f"  ⚠️ Error loading {csv_file}: {e}")
-            continue
+    print(f"  Features: {len(feature_cols)}")
+    print(f"  Memory: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
     
-    if not dfs:
-        raise ValueError("No data loaded successfully!")
-    
-    # Concatena tutti i dataframe
-    print("\nConcatenating dataframes...")
-    df = pd.concat(dfs, ignore_index=True)
-    
-    print(f"\n✅ Loaded {len(df):,} total rows")
-    print(f"Shape: {df.shape}")
-    print(f"Memory usage: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
-    
-    # Info sulle colonne
-    print(f"\nColumns: {len(df.columns)}")
-    print(f"  Features: {len(df.columns) - 1}")  # Escludi label
-    print(f"  Label column: '{df.columns[-1]}'")
-    
-    return df
+    return df, feature_cols
 
 
 def clean_data(df):
     """
-    Pulizia dati: gestisce missing values, infiniti, duplicati.
+    Pulizia dati: missing, infiniti, duplicati.
     
     Args:
-        df: DataFrame originale
+        df: DataFrame
     
     Returns:
         DataFrame pulito
     """
-    print("\n" + "="*80)
-    print("DATA CLEANING")
-    print("="*80)
+    print_section("DATA CLEANING")
     
     initial_rows = len(df)
     
-    # 1. Controlla valori mancanti
-    missing_count = df.isnull().sum().sum()
-    if missing_count > 0:
-        print(f"\n⚠️ Found {missing_count:,} missing values")
-        print("Columns with missing values:")
-        print(df.isnull().sum()[df.isnull().sum() > 0])
-        
-        # Riempi con 0 (strategia comune per network features)
+    # 1. Missing values
+    missing = df.isnull().sum().sum()
+    if missing > 0:
+        print(f"⚠️  Found {missing:,} missing values → filling with 0")
         df = df.fillna(0)
-        print("✅ Missing values filled with 0")
     else:
         print("✅ No missing values")
     
-    # 2. Controlla valori infiniti
-    # Identifica colonne numeriche
+    # 2. Infinite values
     numeric_cols = df.select_dtypes(include=[np.number]).columns
-    
     inf_count = 0
+    
     for col in numeric_cols:
         inf_mask = np.isinf(df[col])
         if inf_mask.any():
             inf_count += inf_mask.sum()
-            # Sostituisci inf con max value non-inf della colonna
             max_val = df[col][~inf_mask].max()
             df.loc[inf_mask, col] = max_val
     
     if inf_count > 0:
-        print(f"\n⚠️ Found {inf_count:,} infinite values")
-        print("✅ Infinite values replaced with column max")
+        print(f"⚠️  Found {inf_count:,} infinite values → replaced with column max")
     else:
         print("✅ No infinite values")
     
-    # 3. Rimuovi duplicati (opzionale, può essere lento)
+    # 3. Duplicates
     duplicates = df.duplicated().sum()
     if duplicates > 0:
-        print(f"\n⚠️ Found {duplicates:,} duplicate rows")
+        print(f"⚠️  Found {duplicates:,} duplicate rows → removing")
         df = df.drop_duplicates()
-        print(f"✅ Duplicates removed")
     else:
         print("✅ No duplicates")
     
-    final_rows = len(df)
-    removed = initial_rows - final_rows
-    
-    print(f"\nRows removed: {removed:,} ({removed/initial_rows*100:.2f}%)")
-    print(f"Final shape: {df.shape}")
+    removed = initial_rows - len(df)
+    print(f"\nCleaning summary:")
+    print(f"  Rows removed: {removed:,} ({removed/initial_rows*100:.2f}%)")
+    print(f"  Final rows: {len(df):,}")
     
     return df
 
 
-def encode_labels(df, label_col=None):
+def create_macro_labels(df, label_col='label'):
     """
-    Encoding labels binario: Benign=0, Attack=1.
+    Crea le due colonne target: y_macro e y_specific.
     
     Args:
-        df: DataFrame
-        label_col: Nome colonna label (se None, usa ultima colonna)
+        df: DataFrame con label originale
+        label_col: Nome colonna label
     
     Returns:
-        df con binary_label, label_col
+        df con y_macro e y_specific, mapping_info dict
     """
-    print("\n" + "="*80)
-    print("LABEL ENCODING")
-    print("="*80)
+    print_section("LABEL MAPPING: 34 Classes → Macro-Categories")
     
-    if label_col is None:
-        label_col = df.columns[-1]
+    # Verifica che tutte le label siano nel mapping
+    unique_labels = df[label_col].unique()
+    unmapped = [lbl for lbl in unique_labels if lbl not in ATTACK_MAPPING]
     
-    print(f"Label column: '{label_col}'")
+    if unmapped:
+        print(f"⚠️  WARNING: {len(unmapped)} unmapped labels found:")
+        for lbl in unmapped:
+            print(f"    - {lbl}")
+        raise ValueError("Please add missing labels to ATTACK_MAPPING!")
     
-    # Mostra distribuzione classi originale
-    print(f"\nOriginal classes: {df[label_col].nunique()}")
-    print("\nTop 10 classes:")
-    print(df[label_col].value_counts().head(10))
+    # Crea y_specific: indice numerico per ogni attacco specifico
+    # (mantiene traccia dell'attacco originale per logging/dashboard)
+    specific_to_idx = {lbl: idx for idx, lbl in enumerate(sorted(unique_labels))}
+    df['y_specific'] = df[label_col].map(specific_to_idx)
     
-    # Binary encoding
-    df['binary_label'] = df[label_col].apply(
-        lambda x: 0 if str(x).strip().lower() == 'benign' else 1
-    )
+    # Crea y_macro: macro-categoria per training
+    df['y_macro'] = df[label_col].map(ATTACK_MAPPING)
     
     # Statistiche
-    binary_dist = df['binary_label'].value_counts().sort_index()
-    print("\n" + "-"*80)
-    print("Binary distribution:")
-    print(f"  Normal (0):  {binary_dist.get(0, 0):>10,} ({binary_dist.get(0, 0)/len(df)*100:>6.2f}%)")
-    print(f"  Anomaly (1): {binary_dist.get(1, 0):>10,} ({binary_dist.get(1, 0)/len(df)*100:>6.2f}%)")
-    print(f"\nAnomaly rate: {df['binary_label'].mean():.2%}")
+    print("\nLabel distribution:")
+    print("\nSpecific labels (top 10):")
+    print(df[label_col].value_counts().head(10))
     
-    return df, label_col
+    print("\nMacro-categories:")
+    macro_dist = df['y_macro'].value_counts()
+    for cat in MACRO_CATEGORIES:
+        if cat in macro_dist.index:
+            count = macro_dist[cat]
+            print(f"  {cat:15s}: {count:>8,} ({count/len(df)*100:>6.2f}%)")
+    
+    # Info mapping
+    mapping_info = {
+        'specific_to_idx': specific_to_idx,
+        'idx_to_specific': {v: k for k, v in specific_to_idx.items()},
+        'attack_mapping': ATTACK_MAPPING,
+        'macro_categories': MACRO_CATEGORIES,
+        'n_specific_classes': len(specific_to_idx),
+        'n_macro_classes': len(MACRO_CATEGORIES)
+    }
+    
+    return df, mapping_info
 
 
-def prepare_features(df, label_col):
+def encode_macro_labels(df_train, df_test, df_val, mapping_info):
     """
-    Prepara X (features) e y (labels).
+    Encoding macro-labels con LabelEncoder.
+    FIT solo su train, TRANSFORM su test/val (anti-leakage).
     
     Args:
-        df: DataFrame con binary_label
-        label_col: Nome colonna label originale
+        df_train, df_test, df_val: DataFrame con y_macro
+        mapping_info: Dict con info mapping
     
     Returns:
-        X, y, feature_names
+        df_train, df_test, df_val con y_macro encoded, label_encoder
     """
-    print("\n" + "="*80)
-    print("FEATURE PREPARATION")
-    print("="*80)
+    print_section("ENCODING MACRO-LABELS (Anti-Leakage)")
     
-    # Rimuovi colonne non-feature
-    cols_to_drop = [label_col, 'binary_label']
+    # Crea encoder
+    label_encoder = LabelEncoder()
     
-    # Gestisci possibili colonne aggiuntive da rimuovere
-    # (es. 'Unnamed: 0', index columns, ecc.)
-    for col in df.columns:
-        if 'unnamed' in col.lower() or col.lower() in ['index', 'id']:
-            cols_to_drop.append(col)
+    # FIT solo su train
+    print("FIT LabelEncoder on TRAIN set...")
+    label_encoder.fit(df_train['y_macro'])
     
-    # Features
-    feature_cols = [col for col in df.columns if col not in cols_to_drop]
-    X = df[feature_cols].values
-    y = df['binary_label'].values
+    print(f"  Classes found: {label_encoder.classes_}")
+    print(f"  Encoding: {dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))}")
     
-    print(f"Features shape: {X.shape}")
-    print(f"Labels shape: {y.shape}")
-    print(f"\nFeature names ({len(feature_cols)}):")
-    print(feature_cols[:10], "..." if len(feature_cols) > 10 else "")
+    # TRANSFORM su tutti i set
+    print("\nTRANSFORM labels:")
+    df_train['y_macro_encoded'] = label_encoder.transform(df_train['y_macro'])
+    print(f"  ✅ Train: {len(df_train)} rows")
     
-    return X, y, feature_cols
+    if df_test is not None:
+        # Gestisci eventuali label non viste in train
+        unseen_test = set(df_test['y_macro']) - set(label_encoder.classes_)
+        if unseen_test:
+            print(f"  ⚠️  Test has unseen labels: {unseen_test}")
+            # Mappa unseen labels a classe più simile o -1
+            df_test['y_macro_encoded'] = df_test['y_macro'].apply(
+                lambda x: label_encoder.transform([x])[0] if x in label_encoder.classes_ else -1
+            )
+        else:
+            df_test['y_macro_encoded'] = label_encoder.transform(df_test['y_macro'])
+        print(f"  ✅ Test: {len(df_test)} rows")
+    
+    if df_val is not None:
+        unseen_val = set(df_val['y_macro']) - set(label_encoder.classes_)
+        if unseen_val:
+            print(f"  ⚠️  Val has unseen labels: {unseen_val}")
+            df_val['y_macro_encoded'] = df_val['y_macro'].apply(
+                lambda x: label_encoder.transform([x])[0] if x in label_encoder.classes_ else -1
+            )
+        else:
+            df_val['y_macro_encoded'] = label_encoder.transform(df_val['y_macro'])
+        print(f"  ✅ Val: {len(df_val)} rows")
+    
+    # Aggiungi encoder a mapping_info
+    mapping_info['label_encoder_classes'] = label_encoder.classes_.tolist()
+    
+    return df_train, df_test, df_val, label_encoder
 
 
-def normalize_features(X_train, X_test):
+def normalize_features(df_train, df_test, df_val, feature_cols):
     """
     Normalizzazione con StandardScaler.
+    FIT solo su train, TRANSFORM su test/val (anti-leakage).
     
     Args:
-        X_train: Training features
-        X_test: Test features
+        df_train, df_test, df_val: DataFrame
+        feature_cols: Lista colonne feature
     
     Returns:
-        X_train_scaled, X_test_scaled, scaler
+        df_train, df_test, df_val con features scalate, scaler
     """
-    print("\n" + "="*80)
-    print("FEATURE NORMALIZATION")
-    print("="*80)
+    print_section("FEATURE NORMALIZATION (Anti-Leakage)")
     
+    # Crea scaler
     scaler = StandardScaler()
     
-    print("Fitting scaler on training data...")
-    X_train_scaled = scaler.fit_transform(X_train)
+    # FIT solo su train
+    print("FIT StandardScaler on TRAIN set...")
+    X_train = df_train[feature_cols].values
+    scaler.fit(X_train)
     
-    print("Transforming test data...")
-    X_test_scaled = scaler.transform(X_test)
+    print(f"  Features: {len(feature_cols)}")
+    print(f"  Mean: ~{scaler.mean_.mean():.6f}")
+    print(f"  Std: ~{scaler.scale_.mean():.6f}")
     
-    print("✅ Normalization complete")
-    print(f"   Mean: ~{X_train_scaled.mean():.6f} (target: 0)")
-    print(f"   Std:  ~{X_train_scaled.std():.6f} (target: 1)")
+    # TRANSFORM su tutti i set
+    print("\nTRANSFORM features:")
+    df_train[feature_cols] = scaler.transform(df_train[feature_cols])
+    print(f"  ✅ Train scaled")
     
-    return X_train_scaled, X_test_scaled, scaler
+    if df_test is not None:
+        df_test[feature_cols] = scaler.transform(df_test[feature_cols])
+        print(f"  ✅ Test scaled")
+    
+    if df_val is not None:
+        df_val[feature_cols] = scaler.transform(df_val[feature_cols])
+        print(f"  ✅ Val scaled")
+    
+    return df_train, df_test, df_val, scaler
 
 
-def preprocess_ciciot2023(
-    data_dir, 
-    output_dir='../data/processed',
-    test_size=0.2,
-    sample_size=None,
-    random_state=42
-):
+def save_processed_datasets(df_train, df_test, df_val, output_dir, feature_cols):
     """
-    Pipeline completa di preprocessing per CICIoT2023.
+    Salva i dataset processati in formato PICKLE (.pkl) per performance elevate.
     
-    Args:
-        data_dir: Directory con file CSV del dataset
-        output_dir: Dove salvare dati preprocessati
-        test_size: Percentuale per test set
-        sample_size: Se specificato, carica solo N righe per file (per testing)
-        random_state: Seed per riproducibilità
-    
-    Returns:
-        X_train, X_test, y_train, y_test, feature_names, scaler
+    Output columns: features + y_macro_encoded + y_specific
     """
-    print("\n" + "🚀"*40)
-    print("CICIoT2023 PREPROCESSING PIPELINE")
-    print("🚀"*40)
-    
-    # 1. Load
-    df = load_ciciot2023(data_dir, sample_size=sample_size, random_state=random_state)
-    
-    # 2. Clean
-    df = clean_data(df)
-    
-    # 3. Encode labels
-    df, label_col = encode_labels(df)
-    
-    # 4. Prepare features
-    X, y, feature_names = prepare_features(df, label_col)
-    
-    # 5. Train/test split
-    print("\n" + "="*80)
-    print("TRAIN/TEST SPLIT")
-    print("="*80)
-    
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, 
-        test_size=test_size, 
-        random_state=random_state,
-        stratify=y  # Mantieni stessa proporzione Normal/Anomaly
-    )
-    
-    print(f"Train set: {X_train.shape[0]:,} samples ({(1-test_size)*100:.0f}%)")
-    print(f"Test set:  {X_test.shape[0]:,} samples ({test_size*100:.0f}%)")
-    print(f"\nTrain anomaly rate: {y_train.mean():.2%}")
-    print(f"Test anomaly rate:  {y_test.mean():.2%}")
-    
-    # 6. Normalize
-    X_train_scaled, X_test_scaled, scaler = normalize_features(X_train, X_test)
-    
-    # 7. Save
-    print("\n" + "="*80)
-    print("SAVING PREPROCESSED DATA")
-    print("="*80)
+    print_section("SAVING PROCESSED DATASETS (PICKLE FORMAT)")
     
     os.makedirs(output_dir, exist_ok=True)
     
-    joblib.dump(X_train_scaled, f'{output_dir}/X_train.pkl')
-    joblib.dump(X_test_scaled, f'{output_dir}/X_test.pkl')
-    joblib.dump(y_train, f'{output_dir}/y_train.pkl')
-    joblib.dump(y_test, f'{output_dir}/y_test.pkl')
-    joblib.dump(feature_names, f'{output_dir}/feature_names.pkl')
-    joblib.dump(scaler, f'{output_dir}/scaler.pkl')
+    # Colonne da salvare
+    output_cols = feature_cols + ['y_macro_encoded', 'y_specific']
     
-    # Salva anche info dataset
-    dataset_info = {
-        'total_samples': len(df),
-        'train_samples': len(X_train),
-        'test_samples': len(X_test),
-        'num_features': len(feature_names),
-        'anomaly_rate': y.mean(),
-        'test_size': test_size,
-        'random_state': random_state
+    # Train
+    train_path = f"{output_dir}/train_processed.pkl"
+    df_train[output_cols].to_pickle(train_path) # <--- CAMBIATO QUI
+    print(f"✅ Train: {train_path}")
+    print(f"   Shape: {df_train[output_cols].shape}")
+    
+    # Test
+    if df_test is not None:
+        test_path = f"{output_dir}/test_processed.pkl"
+        df_test[output_cols].to_pickle(test_path) # <--- CAMBIATO QUI
+        print(f"✅ Test: {test_path}")
+        print(f"   Shape: {df_test[output_cols].shape}")
+    
+    # Val
+    if df_val is not None:
+        val_path = f"{output_dir}/validation_processed.pkl"
+        df_val[output_cols].to_pickle(val_path) # <--- CAMBIATO QUI
+        print(f"✅ Val: {val_path}")
+        print(f"   Shape: {df_val[output_cols].shape}")
+        
+    return train_path, test_path if df_test is not None else None, val_path if df_val is not None else None
+
+
+def save_artifacts(scaler, label_encoder, mapping_info, output_dir):
+    """
+    Salva artifacts per uso futuro (produzione, dashboard).
+    """
+    print_section("SAVING ARTIFACTS")
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Scaler
+    scaler_path = f"{output_dir}/scaler.pkl"
+    joblib.dump(scaler, scaler_path)
+    print(f"✅ Scaler: {scaler_path}")
+    
+    # Label Encoder
+    encoder_path = f"{output_dir}/label_encoder.pkl"
+    joblib.dump(label_encoder, encoder_path)
+    print(f"✅ Label Encoder: {encoder_path}")
+    
+    # Mapping Info
+    mapping_path = f"{output_dir}/mapping_info.json"
+    save_json(mapping_info, mapping_path)
+    
+    print("\nArtifacts ready for production use!")
+
+
+# =============================================================================
+# MAIN PROCESSING PIPELINE
+# =============================================================================
+
+def process_pipeline(
+    train_path,
+    test_path=None,
+    val_path=None,
+    output_dir='data/processed',
+    nrows=None,
+    label_col='label'
+):
+    """
+    Pipeline completa di preprocessing con anti-leakage.
+    
+    Args:
+        train_path: Path dataset train
+        test_path: Path dataset test (opzionale)
+        val_path: Path dataset validation (opzionale)
+        output_dir: Directory output
+        nrows: Limite righe per testing
+        label_col: Nome colonna label
+    
+    Returns:
+        Paths dei file salvati
+    """
+    print_header("🚀 ADVANCED DATA PROCESSING - CICIoT2023")
+    
+    # =========================================================================
+    # STEP 1: LOAD DATASETS
+    # =========================================================================
+    print_header("STEP 1: LOADING DATASETS")
+    
+    df_train, feature_cols = load_dataset(train_path, nrows=nrows, label_col=label_col)
+    
+    if test_path:
+        df_test, _ = load_dataset(test_path, nrows=nrows, label_col=label_col)
+    else:
+        df_test = None
+        print("ℹ️  No test set provided")
+    
+    if val_path:
+        df_val, _ = load_dataset(val_path, nrows=nrows, label_col=label_col)
+    else:
+        df_val = None
+        print("ℹ️  No validation set provided")
+    
+    # =========================================================================
+    # STEP 2: CLEAN DATA
+    # =========================================================================
+    print_header("STEP 2: DATA CLEANING")
+    
+    df_train = clean_data(df_train)
+    if df_test is not None:
+        df_test = clean_data(df_test)
+    if df_val is not None:
+        df_val = clean_data(df_val)
+    
+    # =========================================================================
+    # STEP 3: CREATE MACRO-LABELS
+    # =========================================================================
+    print_header("STEP 3: LABEL MAPPING")
+    
+    df_train, mapping_info = create_macro_labels(df_train, label_col=label_col)
+    
+    if df_test is not None:
+        df_test, _ = create_macro_labels(df_test, label_col=label_col)
+    
+    if df_val is not None:
+        df_val, _ = create_macro_labels(df_val, label_col=label_col)
+    
+    # =========================================================================
+    # STEP 4: ENCODE LABELS (Anti-Leakage)
+    # =========================================================================
+    print_header("STEP 4: LABEL ENCODING")
+    
+    df_train, df_test, df_val, label_encoder = encode_macro_labels(
+        df_train, df_test, df_val, mapping_info
+    )
+    
+    # =========================================================================
+    # STEP 5: NORMALIZE FEATURES (Anti-Leakage)
+    # =========================================================================
+    print_header("STEP 5: FEATURE NORMALIZATION")
+    
+    df_train, df_test, df_val, scaler = normalize_features(
+        df_train, df_test, df_val, feature_cols
+    )
+    
+    # =========================================================================
+    # STEP 6: SAVE OUTPUTS
+    # =========================================================================
+    print_header("STEP 6: SAVING OUTPUTS")
+    
+    save_processed_datasets(df_train, df_test, df_val, output_dir, feature_cols)
+    save_artifacts(scaler, label_encoder, mapping_info, output_dir)
+    
+    # =========================================================================
+    # SUMMARY
+    # =========================================================================
+    print_header("✅ PROCESSING COMPLETE!")
+    
+    print("Summary:")
+    print(f"  Train samples: {len(df_train):,}")
+    if df_test is not None:
+        print(f"  Test samples: {len(df_test):,}")
+    if df_val is not None:
+        print(f"  Val samples: {len(df_val):,}")
+    print(f"  Features: {len(feature_cols)}")
+    print(f"  Macro-categories: {len(MACRO_CATEGORIES)}")
+    print(f"  Specific classes: {mapping_info['n_specific_classes']}")
+    print(f"\nOutput directory: {output_dir}/")
+    
+    return {
+        'train': f"{output_dir}/train_processed.pkl", # .csv -> .pkl
+        'test': f"{output_dir}/test_processed.pkl" if df_test is not None else None,
+        'val': f"{output_dir}/validation_processed.pkl" if df_val is not None else None,
+        'scaler': f"{output_dir}/scaler.pkl",
+        'label_encoder': f"{output_dir}/label_encoder.pkl",
+        'mapping_info': f"{output_dir}/mapping_info.json"
     }
-    joblib.dump(dataset_info, f'{output_dir}/dataset_info.pkl')
-    
-    print(f"\n✅ All files saved to {output_dir}/")
-    print("\nSaved files:")
-    print("  - X_train.pkl, X_test.pkl")
-    print("  - y_train.pkl, y_test.pkl")
-    print("  - feature_names.pkl")
-    print("  - scaler.pkl")
-    print("  - dataset_info.pkl")
-    
-    print("\n" + "="*80)
-    print("✅ PREPROCESSING COMPLETE!")
-    print("="*80)
-    
-    return X_train_scaled, X_test_scaled, y_train, y_test, feature_names, scaler
 
 
-# Test standalone
+# =============================================================================
+# CLI
+# =============================================================================
+
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='Preprocess CICIoT2023 dataset')
-    parser.add_argument('--data-dir', type=str, default='../data/raw/CICIoT2023',
-                        help='Directory containing CSV files')
-    parser.add_argument('--output-dir', type=str, default='../data/processed',
-                        help='Output directory for preprocessed data')
-    parser.add_argument('--test-size', type=float, default=0.2,
-                        help='Test set size (0-1)')
-    parser.add_argument('--sample', type=int, default=None,
-                        help='Sample N rows per file (for testing)')
-    parser.add_argument('--seed', type=int, default=42,
-                        help='Random seed')
+    parser = argparse.ArgumentParser(
+        description='Advanced preprocessing for CICIoT2023 with macro-categories'
+    )
+    parser.add_argument('--train-path', type=str, default='../data/raw/CICIOT23/train/train.csv',
+                        help='Path to training CSV')
+    parser.add_argument('--test-path', type=str, default='../data/raw/CICIOT23/test/test.csv',
+                        help='Path to test CSV (optional)')
+    parser.add_argument('--val-path', type=str, default='../data/raw/CICIOT23/validation/validation.csv',
+                        help='Path to validation CSV (optional)')
+    parser.add_argument('--output-dir', type=str, default='../data/processed/CICIOT23',
+                        help='Output directory')
+    parser.add_argument('--nrows', type=int, default=None,
+                        help='Limit rows for testing (default: load all)')
+    parser.add_argument('--label-col', type=str, default='label',
+                        help='Name of label column')
     
     args = parser.parse_args()
     
-    # Run preprocessing
-    preprocess_ciciot2023(
-        data_dir=args.data_dir,
+    # Run pipeline
+    paths = process_pipeline(
+        train_path=args.train_path,
+        test_path=args.test_path,
+        val_path=args.val_path,
         output_dir=args.output_dir,
-        test_size=args.test_size,
-        sample_size=args.sample,
-        random_state=args.seed
+        nrows=args.nrows,
+        label_col=args.label_col
     )
     
-    print("\n💡 Next steps:")
-    print("   1. Run: python src/train_decision_tree.py")
-    print("   2. Run: python src/train_random_forest.py")
+    print("\n" + "="*80)
+    print("📁 OUTPUT FILES:")
+    print("="*80)
+    for key, path in paths.items():
+        if path:
+            print(f"  {key:15s}: {path}")

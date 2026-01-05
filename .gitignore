@@ -11,8 +11,10 @@ env/
 *.egg-info/
 
 # Data (troppo grandi per Git)
-data/raw/*.txt
-data/raw/*.csv
+data/raw/CICIOT23/test/*.csv
+data/raw/CICIOT23/train/*.csv
+data/raw/CICIOT23/validation/*.csv
+
 data/processed/*.pkl
 *.pcap
 

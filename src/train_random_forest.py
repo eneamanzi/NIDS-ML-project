@@ -382,12 +382,6 @@ def save_model(model, filepath='../models/RandomForest_CICIoT2023_multiclass.pkl
     size_mb = os.path.getsize(filepath) / 1024**2
     print(f"💾 Model saved to {filepath}")
     print(f"   Size: {size_mb:.2f} MB")
-    
-    # Salva anche come best_model (per convenzione)
-    best_model_path = '../models/best_model_ciciot2023_multiclass.pkl'
-    joblib.dump(model, best_model_path)
-    print(f"💾 Also saved as {best_model_path}")
-
 
 # Main
 if __name__ == '__main__':

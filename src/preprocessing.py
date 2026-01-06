@@ -17,7 +17,7 @@ Usage:
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-import joblib
+import joblib           # Usato per salvare oggetti Python (come lo scaler) in modo efficiente
 import os
 import json
 from pathlib import Path
@@ -28,7 +28,8 @@ warnings.filterwarnings('ignore')
 # =============================================================================
 # CONFIGURAZIONE MAPPING ATTACCHI → MACRO-CATEGORIE
 # =============================================================================
-
+# MOTIVAZIONE: Il dataset originale ha 34 classi (troppe e sbilanciate).
+# Raggrupparle in 8 macro-categorie rende il modello più stabile e veloce.
 ATTACK_MAPPING = {
     # === DDoS (12 varianti) ===
     'DDoS-ICMP_Flood': 'DDoS',
@@ -76,14 +77,15 @@ ATTACK_MAPPING = {
     # === BruteForce (1 variante) ===
     'DictionaryBruteForce': 'BruteForce',
     
-    # === Backdoor (1 variante) ===
+    # TODO spostare in web === Backdoor (1 variante) ===
     'Backdoor_Malware': 'Backdoor',
     
     # === Benign ===
     'BenignTraffic': 'Benign'
 }
 
-# Ordine macro-categorie (per encoding consistente)
+# Definiamo un ordine fisso per le categorie. 
+# Questo assicura che 'Benign' sia sempre, ad esempio, la classe 0 o l'ultima, evitando che l'ordine cambi se ri-eseguiamo il codice su dati diversi.
 MACRO_CATEGORIES = ['Benign', 'DDoS', 'DoS', 'Mirai', 'Recon', 'Web', 'Spoofing', 'BruteForce', 'Backdoor']
 
 
@@ -134,19 +136,21 @@ def load_dataset(filepath, nrows=None, label_col='label'):
         raise FileNotFoundError(f"File not found: {filepath}")
     
     # Carica dataset
+    # MOTIVAZIONE: L'argomento 'nrows' è utilissimo per il debug.
     if nrows:
         df = pd.read_csv(filepath, nrows=nrows)
         print(f"  Sample loaded: {len(df):,} rows (limit: {nrows:,})")
     else:
         df = pd.read_csv(filepath)
         print(f"  Loaded: {len(df):,} rows")
-    
+       
     # Identifica colonne feature (tutte tranne label)
+    # È buona norma farlo dinamicamente invece di hard-codare i nomi delle colonne.
     if label_col not in df.columns:
         raise ValueError(f"Label column '{label_col}' not found in dataset!")
-    
     feature_cols = [col for col in df.columns if col != label_col]
-    
+
+    # Controllo memoria: stampiamo quanto occupa il dataset in RAM.
     print(f"  Features: {len(feature_cols)}")
     print(f"  Memory: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
     
@@ -168,6 +172,10 @@ def clean_data(df):
     initial_rows = len(df)
     
     # 1. Missing values
+    # Se mancano dati, li riempiamo con 0
+    # Questo metodo controlla ogni singola cella del tuo DataFrame (isnull()).
+    # Pandas somma i valori True per ogni colonna (sum())
+    # Il secondo .sum() somma le somme delle colonne di prima tra loro.
     missing = df.isnull().sum().sum()
     if missing > 0:
         print(f"⚠️  Found {missing:,} missing values → filling with 0")
@@ -176,15 +184,19 @@ def clean_data(df):
         print("✅ No missing values")
     
     # 2. Infinite values
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    # Alcune colonne come "Flow Bytes/s" possono diventare infinite se la durata è 0.
+    # Sklearn va in crash con valori infiniti.
+    # SOLUZIONE: Sostituiamo Inf con il valore massimo FINITO presente nella colonna.
+    numeric_cols = df.select_dtypes(include=[np.number]).columns    #crea lista con nomi colonne numeriche
     inf_count = 0
     
     for col in numeric_cols:
-        inf_mask = np.isinf(df[col])
+        inf_mask = np.isinf(df[col])    #maschera: True dove c'è un valore infinito (positivo o negativo) e False dove c'è un numero normale o NaN.
         if inf_mask.any():
             inf_count += inf_mask.sum()
-            max_val = df[col][~inf_mask].max()
-            df.loc[inf_mask, col] = max_val
+            max_val = df[col][~inf_mask].max()  # Trova il max escludendo gli inf
+            #La tilde (~) inverte la maschera (T diventa F). Quindi seleziona tutto ciò che NON è infinito.
+            df.loc[inf_mask, col] = max_val     # Sostituisce
     
     if inf_count > 0:
         print(f"⚠️  Found {inf_count:,} infinite values → replaced with column max")
@@ -192,6 +204,7 @@ def clean_data(df):
         print("✅ No infinite values")
     
     # 3. Duplicates
+    # Rimuoviamo righe identiche per evitare che il modello "memoriizzi" invece di imparare
     duplicates = df.duplicated().sum()
     if duplicates > 0:
         print(f"⚠️  Found {duplicates:,} duplicate rows → removing")
@@ -210,6 +223,8 @@ def clean_data(df):
 def create_macro_labels(df, label_col='label'):
     """
     Crea le due colonne target: y_macro e y_specific.
+    1. y_macro: Il target semplificato per il Machine Learning (8 classi)
+    2. y_specific: Un indice per mantenere l'informazione originale (34 classi)
     
     Args:
         df: DataFrame con label originale
@@ -220,22 +235,34 @@ def create_macro_labels(df, label_col='label'):
     """
     print_section("LABEL MAPPING: 34 Classes → Macro-Categories")
     
-    # Verifica che tutte le label siano nel mapping
-    unique_labels = df[label_col].unique()
+   
+
+    unique_labels = df[label_col].unique()  #Seleziona colonna che contiene le etichette e restituisce un mapping con solo valori distinti (otterremo le 33/34 categorie iniziali)
+
+    # Verifica che tutte le label siano nel mapping, altrimenti da un warning
     unmapped = [lbl for lbl in unique_labels if lbl not in ATTACK_MAPPING]
-    
     if unmapped:
         print(f"⚠️  WARNING: {len(unmapped)} unmapped labels found:")
         for lbl in unmapped:
             print(f"    - {lbl}")
         raise ValueError("Please add missing labels to ATTACK_MAPPING!")
     
-    # Crea y_specific: indice numerico per ogni attacco specifico
+    # Label Encoding: etichette da stringhe a numeri
     # (mantiene traccia dell'attacco originale per logging/dashboard)
     specific_to_idx = {lbl: idx for idx, lbl in enumerate(sorted(unique_labels))}
+        # ordina alfabeticamente le label e gli assegna un numero enum
+        # enumerate Restituisce coppie: (0, 'Attacco_A'), (1, 'Attacco_B'), ...
+        # lbl: idx, inverte la coppia e La chiave (idx) diventa l'etichetta (lbl)
+        # Risultato: {'Attacco_A': 0, 'Attacco_B': 1, ...}
+        # dunque qundo legge attacco_A saprà che è mappato a 0 (str to int)
+
+    # Crea y_specific: indice numerico per ogni attacco specifico
+    #Prende la colonna originale (quella con le stringhe) e per ogni cella va a cercare il valore corrispondente nel dizionario specific_to_idx.
+    # Es: Trasforma "Attacco_A" in "0".
     df['y_specific'] = df[label_col].map(specific_to_idx)
     
-    # Crea y_macro: macro-categoria per training
+    # Crea y_macro: macro-categoria per TRAINING applicando il dizionario ATTACK_MAPPING creato
+    # Es: Trasforma "DDoS-UDP_Flood" in "DDoS".
     df['y_macro'] = df[label_col].map(ATTACK_MAPPING)
     
     # Statistiche
@@ -280,7 +307,8 @@ def encode_macro_labels(df_train, df_test, df_val, mapping_info):
     # Crea encoder
     label_encoder = LabelEncoder()
     
-    # FIT solo su train
+    # FIT (Imparare) SOLO SU TRAIN
+    # Il modello impara che 'Benign'=0, 'DDoS'=1 basandosi solo sul training set.
     print("FIT LabelEncoder on TRAIN set...")
     label_encoder.fit(df_train['y_macro'])
     

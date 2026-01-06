@@ -53,3 +53,29 @@ data/processed/production/
 ├── production_incident_20250116_091534.pkl
 └── production_incident_20250116_091534_metadata.json
 
+
+
+
+
+
+
+
+
+
+
+
+
+# 1. Install dependencies
+pip install -r requirements_full.txt
+
+# 2. Train models (automatic)
+./scripts/train_all.sh
+
+# 3. Compare models
+python src/compare_models.py
+
+# 4. Run sniffer (background, dry-run)
+sudo python src/sniffer.py --interface eth0 --model models/RandomForest/rf_model_smote.pkl --dry-run &
+
+# 5. Open dashboard (new terminal)
+streamlit run src/dashboard.py

@@ -1,0 +1,126 @@
+{
+  "timestamp": "2026-01-06T19:20:53.880612",
+  "total_models": 8,
+  "algorithms": [
+    "Random Forest",
+    "Decision Tree",
+    "k-NN",
+    "SVM"
+  ],
+  "datasets": [
+    "smote",
+    "original"
+  ],
+  "results": [
+    {
+      "algorithm": "Random Forest",
+      "dataset": "smote",
+      "accuracy": 0.9874,
+      "precision": 0.986658131220187,
+      "recall": 0.9874,
+      "f1": 0.9868884630549808,
+      "mean_score": 0.9870866485687919
+    },
+    {
+      "algorithm": "Random Forest",
+      "dataset": "original",
+      "accuracy": 0.9862,
+      "precision": 0.9870082518679153,
+      "recall": 0.9862,
+      "f1": 0.9864612210426913,
+      "mean_score": 0.9864673682276517
+    },
+    {
+      "algorithm": "Decision Tree",
+      "dataset": "smote",
+      "accuracy": 0.9837,
+      "precision": 0.9838454047899023,
+      "recall": 0.9837,
+      "f1": 0.9836774570902315,
+      "mean_score": 0.9837307154700334
+    },
+    {
+      "algorithm": "Decision Tree",
+      "dataset": "original",
+      "accuracy": 0.9765,
+      "precision": 0.9811582585207438,
+      "recall": 0.9765,
+      "f1": 0.9784297149206541,
+      "mean_score": 0.9781469933603495
+    },
+    {
+      "algorithm": "k-NN",
+      "dataset": "original",
+      "accuracy": 0.9147,
+      "precision": 0.9116422679337159,
+      "recall": 0.9147,
+      "f1": 0.9119784070592543,
+      "mean_score": 0.9132551687482425
+    },
+    {
+      "algorithm": "k-NN",
+      "dataset": "smote",
+      "accuracy": 0.903,
+      "precision": 0.9115571884581665,
+      "recall": 0.903,
+      "f1": 0.9055521094122673,
+      "mean_score": 0.9057773244676085
+    },
+    {
+      "algorithm": "SVM",
+      "dataset": "smote",
+      "accuracy": 0.692,
+      "precision": 0.8423372847052436,
+      "recall": 0.692,
+      "f1": 0.7236650936134227,
+      "mean_score": 0.7375005945796665
+    },
+    {
+      "algorithm": "SVM",
+      "dataset": "original",
+      "accuracy": 0.685,
+      "precision": 0.8380717930701569,
+      "recall": 0.685,
+      "f1": 0.7160796699246337,
+      "mean_score": 0.7310378657486977
+    }
+  ],
+  "best": {
+    "accuracy": {
+      "algorithm": "Random Forest",
+      "dataset": "smote",
+      "accuracy": 0.9874,
+      "precision": 0.986658131220187,
+      "recall": 0.9874,
+      "f1": 0.9868884630549808,
+      "mean_score": 0.9870866485687919
+    },
+    "precision": {
+      "algorithm": "Random Forest",
+      "dataset": "original",
+      "accuracy": 0.9862,
+      "precision": 0.9870082518679153,
+      "recall": 0.9862,
+      "f1": 0.9864612210426913,
+      "mean_score": 0.9864673682276517
+    },
+    "recall": {
+      "algorithm": "Random Forest",
+      "dataset": "smote",
+      "accuracy": 0.9874,
+      "precision": 0.986658131220187,
+      "recall": 0.9874,
+      "f1": 0.9868884630549808,
+      "mean_score": 0.9870866485687919
+    },
+    "f1": {
+      "algorithm": "Random Forest",
+      "dataset": "smote",
+      "accuracy": 0.9874,
+      "precision": 0.986658131220187,
+      "recall": 0.9874,
+      "f1": 0.9868884630549808,
+      "mean_score": 0.9870866485687919
+    }
+  }
+}

@@ -1,0 +1,1016 @@
+   Dataset type: smote
+   Train: /home/enea/Desktop/NIDS-ML-project/data/processed/SMOTE/train_smote.pkl
+   Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   Model output: /home/enea/Desktop/NIDS-ML-project/models/RandomForest/rf_model_smote.pkl
+   Plots output: /home/enea/Desktop/NIDS-ML-project/docs/RandomForest/smote
+
+================================================================================
+                             LOADING PROCESSED DATA                             
+================================================================================
+
+📂 Loading Train: /home/enea/Desktop/NIDS-ML-project/data/processed/SMOTE/train_smote.pkl
+   ✅ Shape: (57904, 48)
+📂 Loading Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   ✅ Shape: (10000, 48)
+📂 Loading Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   ✅ Shape: (9999, 48)
+
+📊 Dataset Summary:
+   Features: 46
+   Classes: 8
+   Train samples: 57,904
+   Test samples: 10,000
+   Val samples: 9,999
+
+📊 Train Class Distribution:
+   Class 0:  7,238 (12.50%)
+   Class 1:  7,238 (12.50%)
+   Class 2:  7,238 (12.50%)
+   Class 3:  7,238 (12.50%)
+   Class 4:  7,238 (12.50%)
+   Class 5:  7,238 (12.50%)
+   Class 6:  7,238 (12.50%)
+   Class 7:  7,238 (12.50%)
+
+✅ Label encoder loaded from: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/label_encoder.pkl
+   Classes: ['Benign' 'BruteForce' 'DDoS' 'DoS' 'Mirai' 'Recon' 'Spoofing' 'Web']
+
+================================================================================
+                             TRAINING RANDOM FOREST                             
+================================================================================
+
+Hyperparameters:
+  n_estimators: 100
+  max_depth: 25
+  min_samples_split: 10
+  min_samples_leaf: 5
+  max_features: sqrt
+  class_weight: balanced
+  n_jobs: -1
+
+Training (this may take a few minutes)...
+[Parallel(n_jobs=-1)]: Using backend ThreadingBackend with 16 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  18 tasks      | elapsed:    0.2s
+[Parallel(n_jobs=-1)]: Done 100 out of 100 | elapsed:    0.8s finished
+
+✅ Training complete in 0.8 seconds (0.0 minutes)!
+
+================================================================================
+                                MODEL EVALUATION                                
+================================================================================
+
+Making predictions...
+[Parallel(n_jobs=16)]: Using backend ThreadingBackend with 16 concurrent workers.
+[Parallel(n_jobs=16)]: Done  18 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=16)]: Done 100 out of 100 | elapsed:    0.1s finished
+[Parallel(n_jobs=16)]: Using backend ThreadingBackend with 16 concurrent workers.
+[Parallel(n_jobs=16)]: Done  18 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=16)]: Done 100 out of 100 | elapsed:    0.0s finished
+[Parallel(n_jobs=16)]: Using backend ThreadingBackend with 16 concurrent workers.
+[Parallel(n_jobs=16)]: Done  18 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=16)]: Done 100 out of 100 | elapsed:    0.0s finished
+
+--------------------------------------------------------------------------------
+RESULTS SUMMARY - Dataset: SMOTE
+--------------------------------------------------------------------------------
+Metric                 Train         Test          Val   Status
+--------------------------------------------------------------------------------
+Accuracy              0.9997       0.9874       0.9884        ✅
+Precision             0.9997       0.9867       0.9881        ✅
+Recall                0.9997       0.9874       0.9884        ✅
+F1                    0.9997       0.9869       0.9882         
+--------------------------------------------------------------------------------
+
+✅ Buona generalizzazione (Train-Test diff: 0.0123)
+
+--------------------------------------------------------------------------------
+CLASSIFICATION REPORT (Test Set)
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+      Benign     0.7956    0.9237    0.8549       236
+  BruteForce     0.0000    0.0000    0.0000         6
+        DDoS     0.9994    0.9963    0.9979      7290
+         DoS     0.9913    0.9982    0.9948      1710
+       Mirai     0.9983    0.9913    0.9948       577
+       Recon     0.6250    0.5405    0.5797        74
+    Spoofing     0.7400    0.7255    0.7327       102
+         Web     0.0000    0.0000    0.0000         5
+
+    accuracy                         0.9874     10000
+   macro avg     0.6437    0.6470    0.6443     10000
+weighted avg     0.9867    0.9874    0.9869     10000
+
+
+📊 Confusion matrix saved: /home/enea/Desktop/NIDS-ML-project/docs/RandomForest/smote/confusion_matrix.png
+📊 Metrics comparison saved: /home/enea/Desktop/NIDS-ML-project/docs/RandomForest/smote/metrics_comparison.png
+📊 Per-class performance saved: /home/enea/Desktop/NIDS-ML-project/docs/RandomForest/smote/per_class_performance.png
+
+================================================================================
+                               FEATURE IMPORTANCE                               
+================================================================================
+
+
+Top 15 Most Important Features:
+ 1. IAT                                           0.122420
+ 2. Header_Length                                 0.059814
+ 3. urg_count                                     0.057264
+ 4. rst_count                                     0.055535
+ 5. HTTP                                          0.049134
+ 6. Magnitue                                      0.048538
+ 7. flow_duration                                 0.044172
+ 8. Variance                                      0.042918
+ 9. Srate                                         0.040219
+10. Tot size                                      0.039993
+11. Protocol Type                                 0.036296
+12. Tot sum                                       0.035719
+13. Min                                           0.035077
+14. AVG                                           0.034932
+15. Max                                           0.031055
+
+📊 Feature importance saved: /home/enea/Desktop/NIDS-ML-project/docs/RandomForest/smote/feature_importance.png
+
+================================================================================
+                                  SAVING MODEL                                  
+================================================================================
+
+💾 Model saved: /home/enea/Desktop/NIDS-ML-project/models/RandomForest/rf_model_smote.pkl
+   Size: 8.79 MB
+
+================================================================================
+                              ✅ TRAINING COMPLETE!                              
+================================================================================
+
+✅ MODEL MEETS ALL REQUIREMENTS!
+
+📁 Outputs saved to:
+   Model: /home/enea/Desktop/NIDS-ML-project/models/RandomForest/rf_model_smote.pkl
+   Plots: /home/enea/Desktop/NIDS-ML-project/docs/RandomForest/smote/
+✅ RandomForest (smote) completed in 4s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Training 5 of 8
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+--------------------------------------------------------------------------------
+Training: kNN on original dataset
+--------------------------------------------------------------------------------
+
+Command: python3 /home/enea/Desktop/NIDS-ML-project/src/train_knn.py --dataset-type original --n-neighbors 5
+
+
+🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯
+                            k-NN TRAINING - ORIGINAL                            
+🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯
+
+📂 Configuration:
+   Dataset type: original
+   Train: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/train_processed.pkl
+   Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   Model output: /home/enea/Desktop/NIDS-ML-project/models/kNN/knn_model_original.pkl
+   Plots output: /home/enea/Desktop/NIDS-ML-project/docs/kNN/original
+
+================================================================================
+                             LOADING PROCESSED DATA                             
+================================================================================
+
+📂 Loading Train: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/train_processed.pkl
+   ✅ Shape: (9999, 48)
+📂 Loading Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   ✅ Shape: (10000, 48)
+📂 Loading Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   ✅ Shape: (9999, 48)
+
+📊 Dataset Summary:
+   Features: 46
+   Classes: 8
+   Train samples: 9,999
+   Test samples: 10,000
+   Val samples: 9,999
+
+📊 Train Class Distribution:
+   Class 0:    250 ( 2.50%)
+   Class 1:      3 ( 0.03%)
+   Class 2:  7,238 (72.39%)
+   Class 3:  1,718 (17.18%)
+   Class 4:    614 ( 6.14%)
+   Class 5:     74 ( 0.74%)
+   Class 6:    100 ( 1.00%)
+   Class 7:      2 ( 0.02%)
+
+✅ Label encoder loaded from: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/label_encoder.pkl
+   Classes: ['Benign' 'BruteForce' 'DDoS' 'DoS' 'Mirai' 'Recon' 'Spoofing' 'Web']
+
+================================================================================
+                                 TRAINING k-NN                                  
+================================================================================
+
+Hyperparameters:
+  n_neighbors: 5
+  weights: distance (weighted by inverse distance)
+  algorithm: auto
+  metric: minkowski (p=2, equivalent to euclidean)
+  n_jobs: -1 (use all CPU cores)
+
+⚠️ WARNING: k-NN training stores all training data
+   Memory requirement: ~3.5 MB
+
+Training (storing training data)...
+
+✅ Training complete in 0.00 seconds!
+   (k-NN is instance-based: 'training' = storing data)
+
+================================================================================
+                                MODEL EVALUATION                                
+================================================================================
+
+⏳ Making predictions (k-NN is slow on large datasets)...
+  Predicting train set...
+  Predicting test set...
+  Predicting validation set...
+
+--------------------------------------------------------------------------------
+RESULTS SUMMARY - Dataset: ORIGINAL
+--------------------------------------------------------------------------------
+Metric                 Train         Test          Val   Status
+--------------------------------------------------------------------------------
+Accuracy              1.0000       0.9147       0.9197        ❌
+Precision             1.0000       0.9116       0.9177        ✅
+Recall                1.0000       0.9147       0.9197        ❌
+F1                    1.0000       0.9120       0.9176         
+--------------------------------------------------------------------------------
+
+⚠️ Train accuracy molto più alta del test (diff: 0.0853)
+   Questo è normale per k-NN (memorization effect)
+
+--------------------------------------------------------------------------------
+CLASSIFICATION REPORT (Test Set)
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+      Benign     0.6656    0.8517    0.7472       236
+  BruteForce     0.0000    0.0000    0.0000         6
+        DDoS     0.9422    0.9632    0.9526      7290
+         DoS     0.8281    0.7520    0.7882      1710
+       Mirai     0.9983    0.9931    0.9957       577
+       Recon     0.5373    0.4865    0.5106        74
+    Spoofing     0.5800    0.2843    0.3816       102
+         Web     0.0000    0.0000    0.0000         5
+
+    accuracy                         0.9147     10000
+   macro avg     0.5689    0.5414    0.5470     10000
+weighted avg     0.9116    0.9147    0.9120     10000
+
+
+📊 Confusion matrix saved: /home/enea/Desktop/NIDS-ML-project/docs/kNN/original/confusion_matrix.png
+📊 Metrics comparison saved: /home/enea/Desktop/NIDS-ML-project/docs/kNN/original/metrics_comparison.png
+📊 Per-class performance saved: /home/enea/Desktop/NIDS-ML-project/docs/kNN/original/per_class_performance.png
+
+================================================================================
+                                  SAVING MODEL                                  
+================================================================================
+
+💾 Model saved: /home/enea/Desktop/NIDS-ML-project/models/kNN/knn_model_original.pkl
+   Size: 3.59 MB
+
+⚠️ NOTE: k-NN model contains all training data
+   Large training set = large model file
+
+================================================================================
+                              ✅ TRAINING COMPLETE!                              
+================================================================================
+
+⚠️ Model does not meet all requirements yet.
+
+💡 Tips for improving k-NN:
+   - Try different n_neighbors values
+   - k-NN works better on SMOTE-balanced dataset
+   - Consider feature selection (reduce dimensionality)
+
+📁 Outputs saved to:
+   Model: /home/enea/Desktop/NIDS-ML-project/models/kNN/knn_model_original.pkl
+   Plots: /home/enea/Desktop/NIDS-ML-project/docs/kNN/original/
+✅ kNN (original) completed in 2s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Training 6 of 8
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+--------------------------------------------------------------------------------
+Training: kNN on smote dataset
+--------------------------------------------------------------------------------
+
+Command: python3 /home/enea/Desktop/NIDS-ML-project/src/train_knn.py --dataset-type smote --n-neighbors 5
+
+
+🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯
+                             k-NN TRAINING - SMOTE                              
+🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯
+
+📂 Configuration:
+   Dataset type: smote
+   Train: /home/enea/Desktop/NIDS-ML-project/data/processed/SMOTE/train_smote.pkl
+   Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   Model output: /home/enea/Desktop/NIDS-ML-project/models/kNN/knn_model_smote.pkl
+   Plots output: /home/enea/Desktop/NIDS-ML-project/docs/kNN/smote
+
+================================================================================
+                             LOADING PROCESSED DATA                             
+================================================================================
+
+📂 Loading Train: /home/enea/Desktop/NIDS-ML-project/data/processed/SMOTE/train_smote.pkl
+   ✅ Shape: (57904, 48)
+📂 Loading Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   ✅ Shape: (10000, 48)
+📂 Loading Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   ✅ Shape: (9999, 48)
+
+📊 Dataset Summary:
+   Features: 46
+   Classes: 8
+   Train samples: 57,904
+   Test samples: 10,000
+   Val samples: 9,999
+
+📊 Train Class Distribution:
+   Class 0:  7,238 (12.50%)
+   Class 1:  7,238 (12.50%)
+   Class 2:  7,238 (12.50%)
+   Class 3:  7,238 (12.50%)
+   Class 4:  7,238 (12.50%)
+   Class 5:  7,238 (12.50%)
+   Class 6:  7,238 (12.50%)
+   Class 7:  7,238 (12.50%)
+
+✅ Label encoder loaded from: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/label_encoder.pkl
+   Classes: ['Benign' 'BruteForce' 'DDoS' 'DoS' 'Mirai' 'Recon' 'Spoofing' 'Web']
+
+================================================================================
+                                 TRAINING k-NN                                  
+================================================================================
+
+Hyperparameters:
+  n_neighbors: 5
+  weights: distance (weighted by inverse distance)
+  algorithm: auto
+  metric: minkowski (p=2, equivalent to euclidean)
+  n_jobs: -1 (use all CPU cores)
+
+⚠️ WARNING: k-NN training stores all training data
+   Memory requirement: ~20.3 MB
+
+Training (storing training data)...
+
+✅ Training complete in 0.00 seconds!
+   (k-NN is instance-based: 'training' = storing data)
+
+================================================================================
+                                MODEL EVALUATION                                
+================================================================================
+
+⏳ Making predictions (k-NN is slow on large datasets)...
+  Predicting train set...
+  Predicting test set...
+  Predicting validation set...
+
+--------------------------------------------------------------------------------
+RESULTS SUMMARY - Dataset: SMOTE
+--------------------------------------------------------------------------------
+Metric                 Train         Test          Val   Status
+--------------------------------------------------------------------------------
+Accuracy              1.0000       0.9030       0.9068        ❌
+Precision             1.0000       0.9116       0.9154        ✅
+Recall                1.0000       0.9030       0.9068        ❌
+F1                    1.0000       0.9056       0.9094         
+--------------------------------------------------------------------------------
+
+⚠️ Train accuracy molto più alta del test (diff: 0.0970)
+   Questo è normale per k-NN (memorization effect)
+
+--------------------------------------------------------------------------------
+CLASSIFICATION REPORT (Test Set)
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+      Benign     0.6975    0.7034    0.7004       236
+  BruteForce     0.0000    0.0000    0.0000         6
+        DDoS     0.9692    0.9202    0.9441      7290
+         DoS     0.7229    0.8743    0.7914      1710
+       Mirai     0.9846    0.9983    0.9914       577
+       Recon     0.4773    0.5676    0.5185        74
+    Spoofing     0.4479    0.4216    0.4343       102
+         Web     0.0000    0.0000    0.0000         5
+
+    accuracy                         0.9030     10000
+   macro avg     0.5374    0.5607    0.5475     10000
+weighted avg     0.9116    0.9030    0.9056     10000
+
+
+📊 Confusion matrix saved: /home/enea/Desktop/NIDS-ML-project/docs/kNN/smote/confusion_matrix.png
+📊 Metrics comparison saved: /home/enea/Desktop/NIDS-ML-project/docs/kNN/smote/metrics_comparison.png
+📊 Per-class performance saved: /home/enea/Desktop/NIDS-ML-project/docs/kNN/smote/per_class_performance.png
+
+================================================================================
+                                  SAVING MODEL                                  
+================================================================================
+
+💾 Model saved: /home/enea/Desktop/NIDS-ML-project/models/kNN/knn_model_smote.pkl
+   Size: 20.76 MB
+
+⚠️ NOTE: k-NN model contains all training data
+   Large training set = large model file
+
+================================================================================
+                              ✅ TRAINING COMPLETE!                              
+================================================================================
+
+⚠️ Model does not meet all requirements yet.
+
+💡 Tips for improving k-NN:
+   - Try different n_neighbors values
+   - k-NN works better on SMOTE-balanced dataset
+   - Consider feature selection (reduce dimensionality)
+
+📁 Outputs saved to:
+   Model: /home/enea/Desktop/NIDS-ML-project/models/kNN/knn_model_smote.pkl
+   Plots: /home/enea/Desktop/NIDS-ML-project/docs/kNN/smote/
+✅ kNN (smote) completed in 5s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Training 7 of 8
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+--------------------------------------------------------------------------------
+Training: SVM on original dataset
+--------------------------------------------------------------------------------
+
+Command: python3 /home/enea/Desktop/NIDS-ML-project/src/train_svm.py --dataset-type original --kernel rbf --C 1.0
+
+
+🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷
+                            SVM TRAINING - ORIGINAL                             
+🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷
+
+📂 Configuration:
+   Dataset type: original
+   Kernel: rbf
+   C: 1.0
+   Train: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/train_processed.pkl
+   Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   Model output: /home/enea/Desktop/NIDS-ML-project/models/SVM/svm_model_original.pkl
+   Plots output: /home/enea/Desktop/NIDS-ML-project/docs/SVM/original
+
+================================================================================
+                             LOADING PROCESSED DATA                             
+================================================================================
+
+📂 Loading Train: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/train_processed.pkl
+   ✅ Shape: (9999, 48)
+📂 Loading Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   ✅ Shape: (10000, 48)
+📂 Loading Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   ✅ Shape: (9999, 48)
+
+📊 Dataset Summary:
+   Features: 46
+   Classes: 8
+   Train samples: 9,999
+   Test samples: 10,000
+   Val samples: 9,999
+
+📊 Train Class Distribution:
+   Class 0:    250 ( 2.50%)
+   Class 1:      3 ( 0.03%)
+   Class 2:  7,238 (72.39%)
+   Class 3:  1,718 (17.18%)
+   Class 4:    614 ( 6.14%)
+   Class 5:     74 ( 0.74%)
+   Class 6:    100 ( 1.00%)
+   Class 7:      2 ( 0.02%)
+
+✅ Label encoder loaded from: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/label_encoder.pkl
+   Classes: ['Benign' 'BruteForce' 'DDoS' 'DoS' 'Mirai' 'Recon' 'Spoofing' 'Web']
+
+================================================================================
+                                  TRAINING SVM                                  
+================================================================================
+
+Hyperparameters:
+  kernel: rbf
+  C: 1.0
+  gamma: scale (auto-computed)
+  class_weight: balanced
+  cache_size: 1000 MB
+
+⚠️ WARNING: SVM training can be VERY SLOW on large datasets
+   Training samples: 9,999
+   This may take 10-60 minutes depending on data size...
+
+Training (this will take time)...
+*
+optimization finished, #iter = 119
+obj = -42.937565, rho = -0.991896
+nSV = 69, nBSV = 3
+*
+optimization finished, #iter = 345
+obj = -20.539787, rho = -0.689836
+nSV = 248, nBSV = 93
+*
+optimization finished, #iter = 334
+obj = -17.092289, rho = -0.742985
+nSV = 169, nBSV = 12
+*
+optimization finished, #iter = 306
+obj = -12.863054, rho = -0.782333
+nSV = 157, nBSV = 0
+.*
+optimization finished, #iter = 590
+obj = -391.303946, rho = -0.751552
+nSV = 188, nBSV = 38
+.*.*
+optimization finished, #iter = 832
+obj = -478.252419, rho = -0.142588
+nSV = 256, nBSV = 37
+*
+optimization finished, #iter = 208
+obj = -4.396335, rho = -0.943831
+nSV = 128, nBSV = 0
+*
+optimization finished, #iter = 114
+obj = -5.124513, rho = 0.748126
+nSV = 61, nBSV = 10
+*
+optimization finished, #iter = 74
+obj = -4.719610, rho = 0.600160
+nSV = 36, nBSV = 0
+*
+optimization finished, #iter = 37
+obj = -4.269733, rho = 0.453113
+nSV = 19, nBSV = 0
+*
+optimization finished, #iter = 73
+obj = -48.099466, rho = 0.880854
+nSV = 33, nBSV = 1
+*
+optimization finished, #iter = 53
+obj = -23.189565, rho = 1.109855
+nSV = 19, nBSV = 0
+.*.*
+optimization finished, #iter = 13
+obj = -2.763359, rho = -0.195174
+nSV = 5, nBSV = 0
+.....
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 5415
+obj = -1249.923782, rho = -0.442563
+nSV = 4661, nBSV = 3339
+*
+optimization finished, #iter = 193
+obj = -20.459825, rho = -0.368655
+nSV = 138, nBSV = 98
+*
+optimization finished, #iter = 228
+obj = -22.756153, rho = 0.137684
+nSV = 162, nBSV = 102
+*
+optimization finished, #iter = 244
+obj = -20.026940, rho = 0.626778
+nSV = 193, nBSV = 91
+*
+optimization finished, #iter = 96
+obj = -3.697792, rho = -0.821671
+nSV = 55, nBSV = 3
+*
+optimization finished, #iter = 117
+obj = -23.048379, rho = -0.155965
+nSV = 57, nBSV = 19
+*
+optimization finished, #iter = 153
+obj = -25.648681, rho = 0.238052
+nSV = 75, nBSV = 21
+*
+optimization finished, #iter = 242
+obj = -16.889824, rho = 0.691448
+nSV = 114, nBSV = 12
+*
+optimization finished, #iter = 76
+obj = -3.433499, rho = -0.687030
+nSV = 35, nBSV = 0
+*
+optimization finished, #iter = 111
+obj = -17.388750, rho = 0.399101
+nSV = 52, nBSV = 3
+*
+optimization finished, #iter = 212
+obj = -12.600331, rho = 0.738978
+nSV = 95, nBSV = 0
+*
+optimization finished, #iter = 61
+obj = -3.160625, rho = -0.565887
+nSV = 18, nBSV = 0
+.*.*
+optimization finished, #iter = 385
+obj = -294.762685, rho = 0.620833
+nSV = 118, nBSV = 10
+*
+optimization finished, #iter = 75
+obj = -4.285660, rho = -0.817641
+nSV = 41, nBSV = 0
+*.*
+optimization finished, #iter = 135
+obj = -4.215515, rho = -0.930537
+nSV = 77, nBSV = 0
+Total nSV = 5142
+[LibSVM]
+✅ Training complete in 1.9 seconds (0.0 minutes)!
+   Number of support vectors: 5142
+   Support vectors per class: [ 218    3 3800  928   27   67   97    2]
+
+================================================================================
+                                MODEL EVALUATION                                
+================================================================================
+
+⏳ Making predictions...
+  Predicting train set...
+  Predicting test set...
+  Predicting validation set...
+
+--------------------------------------------------------------------------------
+RESULTS SUMMARY - Dataset: ORIGINAL
+--------------------------------------------------------------------------------
+Metric                 Train         Test          Val   Status
+--------------------------------------------------------------------------------
+Accuracy              0.7145       0.6850       0.6868        ❌
+Precision             0.8598       0.8381       0.8378        ❌
+Recall                0.7145       0.6850       0.6868        ❌
+F1                    0.7443       0.7161       0.7172         
+--------------------------------------------------------------------------------
+
+✅ Buona generalizzazione (Train-Test diff: 0.0295)
+
+--------------------------------------------------------------------------------
+CLASSIFICATION REPORT (Test Set)
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+      Benign     0.6250    0.7203    0.6693       236
+  BruteForce     0.0000    0.0000    0.0000         6
+        DDoS     0.9565    0.6217    0.7536      7290
+         DoS     0.3536    0.8772    0.5040      1710
+       Mirai     0.9948    0.9931    0.9939       577
+       Recon     0.4486    0.6486    0.5304        74
+    Spoofing     0.4737    0.2647    0.3396       102
+         Web     0.0000    0.0000    0.0000         5
+
+    accuracy                         0.6850     10000
+   macro avg     0.4815    0.5157    0.4739     10000
+weighted avg     0.8381    0.6850    0.7161     10000
+
+
+📊 Confusion matrix saved: /home/enea/Desktop/NIDS-ML-project/docs/SVM/original/confusion_matrix.png
+📊 Metrics comparison saved: /home/enea/Desktop/NIDS-ML-project/docs/SVM/original/metrics_comparison.png
+📊 Per-class performance saved: /home/enea/Desktop/NIDS-ML-project/docs/SVM/original/per_class_performance.png
+
+================================================================================
+                                  SAVING MODEL                                  
+================================================================================
+
+💾 Model saved: /home/enea/Desktop/NIDS-ML-project/models/SVM/svm_model_original.pkl
+   Size: 2.38 MB
+
+================================================================================
+                              ✅ TRAINING COMPLETE!                              
+================================================================================
+
+⚠️ Model does not meet all requirements yet.
+
+💡 Tips for improving SVM:
+   - Try different kernels (linear, rbf, poly)
+   - Tune C parameter (try 0.1, 1.0, 10.0)
+   - SVM works better on SMOTE-balanced dataset
+   - Consider reducing features (PCA)
+
+📁 Outputs saved to:
+   Model: /home/enea/Desktop/NIDS-ML-project/models/SVM/svm_model_original.pkl
+   Plots: /home/enea/Desktop/NIDS-ML-project/docs/SVM/original/
+
+⏱️ Performance note:
+   SVM is SLOW on large datasets
+   For production, consider Random Forest or Decision Tree
+✅ SVM (original) completed in 11s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Training 8 of 8
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+--------------------------------------------------------------------------------
+Training: SVM on smote dataset
+--------------------------------------------------------------------------------
+
+Command: python3 /home/enea/Desktop/NIDS-ML-project/src/train_svm.py --dataset-type smote --kernel rbf --C 1.0
+
+
+🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷
+                              SVM TRAINING - SMOTE                              
+🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷
+
+📂 Configuration:
+   Dataset type: smote
+   Kernel: rbf
+   C: 1.0
+   Train: /home/enea/Desktop/NIDS-ML-project/data/processed/SMOTE/train_smote.pkl
+   Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   Model output: /home/enea/Desktop/NIDS-ML-project/models/SVM/svm_model_smote.pkl
+   Plots output: /home/enea/Desktop/NIDS-ML-project/docs/SVM/smote
+
+================================================================================
+                             LOADING PROCESSED DATA                             
+================================================================================
+
+📂 Loading Train: /home/enea/Desktop/NIDS-ML-project/data/processed/SMOTE/train_smote.pkl
+   ✅ Shape: (57904, 48)
+📂 Loading Test: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/test_processed.pkl
+   ✅ Shape: (10000, 48)
+📂 Loading Validation: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/validation_processed.pkl
+   ✅ Shape: (9999, 48)
+
+📊 Dataset Summary:
+   Features: 46
+   Classes: 8
+   Train samples: 57,904
+   Test samples: 10,000
+   Val samples: 9,999
+
+📊 Train Class Distribution:
+   Class 0:  7,238 (12.50%)
+   Class 1:  7,238 (12.50%)
+   Class 2:  7,238 (12.50%)
+   Class 3:  7,238 (12.50%)
+   Class 4:  7,238 (12.50%)
+   Class 5:  7,238 (12.50%)
+   Class 6:  7,238 (12.50%)
+   Class 7:  7,238 (12.50%)
+
+✅ Label encoder loaded from: /home/enea/Desktop/NIDS-ML-project/data/processed/CICIOT23/label_encoder.pkl
+   Classes: ['Benign' 'BruteForce' 'DDoS' 'DoS' 'Mirai' 'Recon' 'Spoofing' 'Web']
+
+================================================================================
+                                  TRAINING SVM                                  
+================================================================================
+
+Hyperparameters:
+  kernel: rbf
+  C: 1.0
+  gamma: scale (auto-computed)
+  class_weight: balanced
+  cache_size: 1000 MB
+
+⚠️ WARNING: SVM training can be VERY SLOW on large datasets
+   Training samples: 57,904
+   This may take 10-60 minutes depending on data size...
+
+Training (this will take time)...
+.
+Warning: using -h 0 may be faster
+*.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 2825
+obj = -252.847723, rho = -1.888588
+nSV = 383, nBSV = 349
+*
+optimization finished, #iter = 306
+obj = -19.301295, rho = -0.604874
+nSV = 103, nBSV = 10
+*
+optimization finished, #iter = 184
+obj = -15.487640, rho = -0.787706
+nSV = 74, nBSV = 14
+*
+optimization finished, #iter = 246
+obj = -12.773807, rho = -0.822363
+nSV = 72, nBSV = 9
+...
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 3494
+obj = -2352.954943, rho = -1.802027
+nSV = 3276, nBSV = 3201
+....
+Warning: using -h 0 may be faster
+*.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 5155
+obj = -2678.818000, rho = 0.242797
+nSV = 3911, nBSV = 3741
+.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 1211
+obj = -10.065018, rho = -0.912050
+nSV = 47, nBSV = 13
+*
+optimization finished, #iter = 265
+obj = -36.141744, rho = 1.058837
+nSV = 94, nBSV = 43
+*
+optimization finished, #iter = 278
+obj = -28.358913, rho = 0.540422
+nSV = 84, nBSV = 35
+*
+optimization finished, #iter = 238
+obj = -22.551282, rho = 0.240806
+nSV = 65, nBSV = 28
+*
+optimization finished, #iter = 865
+obj = -272.022420, rho = 1.037736
+nSV = 496, nBSV = 443
+*.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 1004
+obj = -159.437871, rho = 3.289526
+nSV = 347, nBSV = 266
+*
+optimization finished, #iter = 763
+obj = -5.802618, rho = -0.057975
+nSV = 29, nBSV = 6
+.....
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 5433
+obj = -7170.044662, rho = -1.920581
+nSV = 7357, nBSV = 7319
+*
+optimization finished, #iter = 192
+obj = -75.208150, rho = -0.889630
+nSV = 132, nBSV = 105
+*
+optimization finished, #iter = 217
+obj = -60.215861, rho = -0.073292
+nSV = 123, nBSV = 86
+*
+optimization finished, #iter = 483
+obj = -20.490706, rho = 0.760661
+nSV = 148, nBSV = 11
+*.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 1778
+obj = -7.184910, rho = -0.607420
+nSV = 29, nBSV = 8
+*
+optimization finished, #iter = 135
+obj = -65.811061, rho = -0.136000
+nSV = 111, nBSV = 94
+*
+optimization finished, #iter = 179
+obj = -66.043079, rho = 0.309772
+nSV = 123, nBSV = 101
+*
+optimization finished, #iter = 235
+obj = -17.149134, rho = 0.868719
+nSV = 105, nBSV = 16
+*
+optimization finished, #iter = 897
+obj = -5.890675, rho = -0.337625
+nSV = 23, nBSV = 5
+*
+optimization finished, #iter = 105
+obj = -42.411987, rho = 0.605581
+nSV = 76, nBSV = 55
+*
+optimization finished, #iter = 362
+obj = -12.957722, rho = 0.890458
+nSV = 111, nBSV = 8
+*.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 1087
+obj = -4.712642, rho = -0.346131
+nSV = 20, nBSV = 5
+..
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 2773
+obj = -1636.808428, rho = 1.956230
+nSV = 2428, nBSV = 2346
+*
+optimization finished, #iter = 421
+obj = -8.860953, rho = -0.574791
+nSV = 32, nBSV = 10
+.
+Warning: using -h 0 may be faster
+*
+optimization finished, #iter = 1745
+obj = -9.348923, rho = -0.945402
+nSV = 83, nBSV = 10
+Total nSV = 15759
+[LibSVM]
+✅ Training complete in 15.5 seconds (0.3 minutes)!
+   Number of support vectors: 15759
+   Support vectors per class: [2765  515 3721 3753   85 2295 2593   32]
+
+================================================================================
+                                MODEL EVALUATION                                
+================================================================================
+
+⏳ Making predictions...
+  Predicting train set...
+  Predicting test set...
+  Predicting validation set...
+
+--------------------------------------------------------------------------------
+RESULTS SUMMARY - Dataset: SMOTE
+--------------------------------------------------------------------------------
+Metric                 Train         Test          Val   Status
+--------------------------------------------------------------------------------
+Accuracy              0.9185       0.6920       0.6906        ❌
+Precision             0.9230       0.8423       0.8394        ❌
+Recall                0.9185       0.6920       0.6906        ❌
+F1                    0.9174       0.7237       0.7211         
+--------------------------------------------------------------------------------
+
+⚠️ Possibile overfitting (Train-Test diff: 0.2265)
+
+--------------------------------------------------------------------------------
+CLASSIFICATION REPORT (Test Set)
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+      Benign     0.7917    0.7246    0.7566       236
+  BruteForce     0.0000    0.0000    0.0000         6
+        DDoS     0.9543    0.6272    0.7569      7290
+         DoS     0.3550    0.8725    0.5047      1710
+       Mirai     0.9983    0.9948    0.9965       577
+       Recon     0.4860    0.7027    0.5746        74
+    Spoofing     0.5960    0.5784    0.5871       102
+         Web     0.0000    0.0000    0.0000         5
+
+    accuracy                         0.6920     10000
+   macro avg     0.5226    0.5625    0.5220     10000
+weighted avg     0.8423    0.6920    0.7237     10000
+
+
+📊 Confusion matrix saved: /home/enea/Desktop/NIDS-ML-project/docs/SVM/smote/confusion_matrix.png
+📊 Metrics comparison saved: /home/enea/Desktop/NIDS-ML-project/docs/SVM/smote/metrics_comparison.png
+📊 Per-class performance saved: /home/enea/Desktop/NIDS-ML-project/docs/SVM/smote/per_class_performance.png
+
+================================================================================
+                                  SAVING MODEL                                  
+================================================================================
+
+💾 Model saved: /home/enea/Desktop/NIDS-ML-project/models/SVM/svm_model_smote.pkl
+   Size: 7.28 MB
+
+================================================================================
+                              ✅ TRAINING COMPLETE!                              
+================================================================================
+
+⚠️ Model does not meet all requirements yet.
+
+💡 Tips for improving SVM:
+   - Try different kernels (linear, rbf, poly)
+   - Tune C parameter (try 0.1, 1.0, 10.0)
+   - SVM works better on SMOTE-balanced dataset
+   - Consider reducing features (PCA)
+
+📁 Outputs saved to:
+   Model: /home/enea/Desktop/NIDS-ML-project/models/SVM/svm_model_smote.pkl
+   Plots: /home/enea/Desktop/NIDS-ML-project/docs/SVM/smote/
+
+⏱️ Performance note:
+   SVM is SLOW on large datasets
+   For production, consider Random Forest or Decision Tree
+✅ SVM (smote) completed in 77s
+
+
+================================================================================
+                              ✅ TRAINING COMPLETE
+================================================================================
+
+
+Summary:
+  Total models: 8
+  Successful: 8
+  Failed: 0
+  Total time: 108s (1m)
+
+✅ All trainings completed successfully!
+
+ℹ️  Next steps:
+  1. Compare models: python src/compare_models.py
+  2. Review plots in docs/<Algorithm>/<dataset>/
+  3. Test best model in production
+(.venv) enea@enea-DESKTOP:~/Desktop/NIDS-ML-project$ 

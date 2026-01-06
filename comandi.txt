@@ -25,10 +25,22 @@ python src/train_random_forest_multiclass.py \
     --model-path models/rf_smote.pkl
 
 -   -   -   compare -   -   -
-python src/compare_models.py \
-    --model1 models/rf_original.pkl \
-    --model2 models/rf_smote.pkl \
-    --test-data data/processed/original/test_processed.pkl
+python3 src/compare_models.py --help
+```
+
+**Output atteso**:
+```
+usage: compare_models.py [-h]
+                         [--algorithms [{DecisionTree,RandomForest,kNN,SVM} ...]
+                         [--datasets [{original,smote} ...]
+
+
+# Confronta tutti
+python3 src/compare_models.py
+
+# O specifico
+python3 src/compare_models.py --algorithms DecisionTree RandomForest
+-   -   -   -
 
 -   -   - capture process - -   -
 # Processa capture grezzo
@@ -57,11 +69,64 @@ data/processed/production/
 
 
 
+-   -   -   SCRIPT EXECUTE ALL  -   -   -
+./scripts/train_all.sh  # Train tutti
+./scripts/train_all.sh --algorithms DecisionTree RandomForest
+./scripts/train_all.sh --datasets smote --parallel
+-   -   -   -
+
+-   -   -   SNIFFER -   -   -
+sudo ./.venv/bin/python ./src/sniffer.py --interface enp42s0 --model models/DecisionTree/dt_model_original.pkl --dry-run
 
 
 
+# Live (dry-run, safe)
+sudo python src/sniffer.py --interface eth0 --model models/best_model.pkl --dry-run
+
+# Live (firewall attivo, DANGER!)
+sudo python src/sniffer.py --interface eth0 --model models/best_model.pkl --firewall --block-threshold 0.9
+
+# PCAP analysis
+python src/sniffer.py --pcap-file capture.pcap --model models/best_model.pkl
+```
+
+**Output**:
+```
+data/sniffer_output/predictions_20250115_143022.csv  # Predizioni
+logs/sniffer/sniffer_20250115_143022.log             # Log dettagliato
+-   -   -   -   -
 
 
+-   -   - dashboard   -     -   -
+streamlit run dashboard/dashboard.py
+# Opens at http://localhost:8501
+```
+
+**Preview**:
+```
+🛡️ NIDS Real-Time Dashboard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 Key Metrics
+┌────────────┬──────────┬──────────────┬─────────────┬──────────────┐
+│Total Flows │ Benign   │Attacks       │IPs Blocked  │Avg Confidence│
+│  12,543    │  10,234  │  2,309       │    142      │   0.9523     │
+│            │▼ 18.4%   │ ▲ 18.4%      │ ▲ 6.1%      │              │
+└────────────┴──────────┴──────────────┴─────────────┴──────────────┘
+
+📊 Traffic Analysis
+[Pie Chart]  [Bar Chart: Attack Types]
+
+⏱️ Timeline
+[Line Chart: Traffic over time]
+
+[Confidence Distribution] [Top Malicious IPs]
+
+📋 Detailed Data
+[Recent Detections | Blocked IPs | All Flows]
+
+🤖 Model Information
+[Available Models | Model Comparison]
 
 
 
@@ -79,3 +144,5 @@ sudo python src/sniffer.py --interface eth0 --model models/RandomForest/rf_model
 
 # 5. Open dashboard (new terminal)
 streamlit run src/dashboard.py
+
+

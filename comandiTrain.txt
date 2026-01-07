@@ -1,0 +1,15 @@
+python3 src/train_decision_tree.py --dataset-type smote
+python3 src/train_decision_tree.py --dataset-type original
+
+python3 src/train_random_forest.py --dataset-type smote
+python3 src/train_random_forest.py --dataset-type original
+
+python3 src/train_knn.py --dataset-type smote
+python3 src/train_knn.py --dataset-type original
+
+python3 src/train_svm.py --dataset-type smote
+python3 src/train_svm.py --dataset-type original
+
+
+
+

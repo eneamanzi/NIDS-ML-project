@@ -12,6 +12,8 @@ env/
 
 # Data (troppo grandi per Git)
 data/
+models/
+logs/
 data/raw/CICIOT23/test/*.csv
 data/raw/CICIOT23/train/*.csv
 data/raw/CICIOT23/validation/*.csv

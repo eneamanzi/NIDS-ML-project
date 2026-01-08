@@ -137,8 +137,12 @@ def get_feature_cols(filepath, label_col='label'):
 
 def process_chunk_cleaning(chunk):
     """Pulizia dati robusta su singolo chunk."""
+    original_len = len(chunk)
+    
     # 1. Missing values
     if chunk.isnull().sum().sum() > 0:
+        n_missing = chunk.isnull().sum().sum()
+        print(f"  ⚠️  Found {n_missing} missing values, filling with 0")
         chunk = chunk.fillna(0)
     
     # 2. Infinite values
@@ -146,11 +150,23 @@ def process_chunk_cleaning(chunk):
     for col in numeric_cols:
         inf_mask = np.isinf(chunk[col])
         if inf_mask.any():
+            n_inf = inf_mask.sum()
             max_val = chunk[col][~inf_mask].max()
             chunk.loc[inf_mask, col] = max_val
+            if n_inf > 10:  # Log solo se significativo
+                print(f"  ⚠️  Column '{col}': Replaced {n_inf} infinite values")
     
     # 3. Duplicates (Locali)
     chunk = chunk.drop_duplicates()
+    n_removed = original_len - len(chunk)
+    if n_removed > 0:
+        print(f"  ℹ️  Removed {n_removed} duplicate rows in chunk")
+    
+    # 4. NUOVO: Check label validity
+    if 'label' in chunk.columns:
+        unknown_labels = chunk[~chunk['label'].isin(ATTACK_MAPPING.keys())]
+        if len(unknown_labels) > 0:
+            print(f"  ⚠️  Found {len(unknown_labels)} unknown labels: {unknown_labels['label'].unique()}")
     
     return chunk
 
@@ -305,6 +321,59 @@ def process_dataset_chunked(filepath, scaler, label_encoder, specific_to_idx, fe
 
 
 # =============================================================================
+# VALIDATION (AGGIUNGI QUESTA SEZIONE DOPO LE ALTRE FUNZIONI)
+# =============================================================================
+
+def validate_processed_data(output_dir):
+    """Validazione completa post-processing."""
+    print_section("VALIDATION CHECKS")
+    
+    # Carica tutti gli split
+    df_train = pd.read_pickle(f"{output_dir}/train_processed.pkl")
+    df_test = pd.read_pickle(f"{output_dir}/test_processed.pkl")
+    df_val = pd.read_pickle(f"{output_dir}/validation_processed.pkl")
+    
+    with open(f"{output_dir}/mapping_info.json") as f:
+        mapping = json.load(f)
+    
+    checks = {
+        'train': df_train,
+        'test': df_test,
+        'val': df_val
+    }
+    
+    for name, df in checks.items():
+        print(f"\n{name.upper()} Split:")
+        
+        # 1. Nessun NaN
+        assert df.isnull().sum().sum() == 0, f"{name}: Found NaN values!"
+        print(f"  ✅ No NaN values")
+        
+        # 2. Range y_specific
+        assert df['y_specific'].min() >= 0, f"{name}: y_specific < 0!"
+        assert df['y_specific'].max() < mapping['n_specific_classes'], \
+            f"{name}: y_specific out of range!"
+        print(f"  ✅ y_specific in range [0, {mapping['n_specific_classes']-1}]")
+        
+        # 3. Range y_macro_encoded
+        assert df['y_macro_encoded'].min() >= 0
+        assert df['y_macro_encoded'].max() < len(mapping['macro_categories'])
+        print(f"  ✅ y_macro_encoded in range [0, {len(mapping['macro_categories'])-1}]")
+        
+        # 4. Dtypes corretti
+        assert df['y_specific'].dtype in [np.int64, np.int32]
+        assert df['y_macro_encoded'].dtype in [np.int64, np.int32]
+        print(f"  ✅ Correct dtypes")
+        
+        # 5. Feature dtype (float32)
+        feature_cols = [col for col in df.columns if col not in ['y_macro_encoded', 'y_specific']]
+        assert all(df[col].dtype == np.float32 for col in feature_cols), "Features not float32!"
+        print(f"  ✅ Features are float32 (memory optimized)")
+    
+    print("\n✅ ALL VALIDATION CHECKS PASSED!")
+
+
+# =============================================================================
 # MAIN PIPELINE
 # =============================================================================
 
@@ -350,22 +419,8 @@ def process_pipeline(train_path, test_path, val_path, output_dir, nrows, label_c
     joblib.dump(scaler, f"{output_dir}/scaler.pkl")
     joblib.dump(label_encoder, f"{output_dir}/label_encoder.pkl")
     save_json(mapping_info, f"{output_dir}/mapping_info.json")
-    
-    
-    # Dopo processing, verifica che y_specific sia consistente
-    df_train = pd.read_pickle(f"{output_dir}/train_processed.pkl")
-    df_test = pd.read_pickle(f"{output_dir}/test_processed.pkl")
 
-    # Carica mapping
-    with open(f"{output_dir}/mapping_info.json") as f:
-        mapping = json.load(f)
-
-    # Verifica range
-    assert df_train['y_specific'].min() >= 0
-    assert df_train['y_specific'].max() < mapping['n_specific_classes']
-    assert df_test['y_specific'].min() >= -1  # -1 per unseen labels OK
-    print("✅ y_specific consistency check passed!")
-
+    validate_processed_data(output_dir)
     print_header("✅ ALL DONE")
 
 

@@ -1,16 +1,28 @@
 """
-Training Decision Tree - PARQUET OPTIMIZED + PATH INDEPENDENT
+Training MLP (Multi-Layer Perceptron) - NEURAL NETWORK per NIDS
 
-OTTIMIZZAZIONI v2.0:
-- INPUT: .parquet (invece di .pkl)
-- PATH: Indipendente da directory invocazione
-- MEMORY: float32 optimization
-- ROBUSTEZZA: Gestione errori migliorata
+PERCHÉ MLP:
+- Approccio completamente diverso (neural network vs tree-based)
+- Cattura pattern non-lineari complessi
+- Ottimo complemento a XGBoost/RF per ensemble
+- Scalabile e adattabile
+
+ARCHITETTURA MLP:
+- Input layer: N features
+- Hidden layers: 2-3 layers (128-256-128 neurons)
+- Output layer: N classes (softmax)
+- Activation: ReLU
+- Optimizer: Adam
+- Loss: categorical_crossentropy
+
+VANTAGGI per NIDS:
+- Pattern discovery automatico
+- Robusto a feature correlate
+- Ottimo per feature continue (network traffic)
 
 Usage (from ANY directory):
-    python src/train_decision_tree.py --dataset-type original
-    python src/train_decision_tree.py --dataset-type smote
-    python path/to/train_decision_tree.py --dataset-type original
+    python src/train_mlp.py --dataset-type original
+    python src/train_mlp.py --dataset-type smote --epochs 50 --batch-size 256
 """
 
 import pandas as pd
@@ -21,7 +33,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     confusion_matrix, classification_report
@@ -30,18 +41,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pyarrow.parquet as pq
 
+# Scikit-learn MLP import
+from sklearn.neural_network import MLPClassifier
+
 # =============================================================================
-# PATH CONFIGURATION (ABSOLUTE - INDIPENDENTE DA CWD!)
+# PATH CONFIGURATION
 # =============================================================================
 
-# Trova BASE_DIR in modo robusto
 SCRIPT_PATH = Path(__file__).resolve()
-BASE_DIR = SCRIPT_PATH.parent.parent  # src/ -> project_root/
-
-# Verifica che BASE_DIR sia corretto (deve contenere data/, models/, etc.)
-if not (BASE_DIR / "data").exists():
-    print(f"⚠️ Warning: data/ not found in {BASE_DIR}")
-    print(f"   Assuming project structure...")
+BASE_DIR = SCRIPT_PATH.parent.parent
 
 DATA_DIR = BASE_DIR / "data" / "processed"
 CICIOT_DIR = DATA_DIR / "CICIOT23"
@@ -50,8 +58,8 @@ BORDERLINE_DIR = DATA_DIR / "BorderlineSMOTE"
 ADASYN_DIR = DATA_DIR / "ADASYN"
 CTGAN_DIR = DATA_DIR / "CTGAN"
 
-MODELS_DIR = BASE_DIR / "models" / "DecisionTree"
-DOCS_DIR = BASE_DIR / "docs" / "DecisionTree"
+MODELS_DIR = BASE_DIR / "models" / "MLP"
+DOCS_DIR = BASE_DIR / "docs" / "MLP"
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -75,24 +83,13 @@ def validate_dataset_type(dataset_type):
     return dataset_type
 
 def get_paths(dataset_type):
-    """
-    Ottieni path basati su dataset type.
-    
-    STRATEGIA:
-    - Train: Varia in base a dataset_type
-    - Test/Val: SEMPRE da CICIOT23 (valutazione realistica)
-    - Artifacts: SEMPRE da CICIOT23 (scaler/encoder originali)
-    
-    Returns:
-        dict: {train, test, validation, artifacts}
-    """
+    """Ottieni path basati su dataset type."""
     paths = {
         'test': CICIOT_DIR / 'test_processed.parquet',
         'validation': CICIOT_DIR / 'validation_processed.parquet',
         'artifacts': CICIOT_DIR
     }
     
-    # Map dataset type → train path
     train_files = {
         'original': CICIOT_DIR / 'train_processed.parquet',
         'smote': SMOTE_DIR / 'train_smote.parquet',
@@ -103,7 +100,6 @@ def get_paths(dataset_type):
     
     paths['train'] = train_files[dataset_type]
     
-    # Verifica esistenza
     for key, path in paths.items():
         if key != 'artifacts' and not path.exists():
             raise FileNotFoundError(f"{key.upper()} not found: {path}")
@@ -111,7 +107,7 @@ def get_paths(dataset_type):
     return paths
 
 def get_output_paths(dataset_type):
-    """Ottieni path output per modello e plots."""
+    """Ottieni path output."""
     model_dir = MODELS_DIR
     plots_dir = DOCS_DIR / dataset_type
     
@@ -119,31 +115,21 @@ def get_output_paths(dataset_type):
     plots_dir.mkdir(parents=True, exist_ok=True)
     
     return {
-        'model': model_dir / f'dt_model_{dataset_type}.pkl',
+        'model': model_dir / f'mlp_model_{dataset_type}.pkl',
         'plots': plots_dir
     }
 
 # =============================================================================
-# DATA LOADING (PARQUET)
+# DATA LOADING
 # =============================================================================
 
 def load_parquet_dataset(parquet_path, description="dataset"):
-    """
-    Carica dataset parquet con ottimizzazione memoria.
-    
-    Args:
-        parquet_path: Path al file .parquet
-        description: Descrizione per log
-    
-    Returns:
-        DataFrame ottimizzato
-    """
+    """Carica dataset parquet."""
     print(f"📂 Loading {description}: {parquet_path}")
     
     if not parquet_path.exists():
         raise FileNotFoundError(f"Not found: {parquet_path}")
     
-    # Leggi parquet
     df = pq.read_table(parquet_path).to_pandas()
     
     print(f"   ✅ Loaded: {df.shape}")
@@ -152,14 +138,13 @@ def load_parquet_dataset(parquet_path, description="dataset"):
     return df
 
 def load_processed_data(paths):
-    """Carica train/test/val datasets."""
+    """Carica train/test/val."""
     print_header("LOADING DATASETS (Parquet)")
     
     df_train = load_parquet_dataset(paths['train'], "TRAIN")
     df_test = load_parquet_dataset(paths['test'], "TEST")
     df_val = load_parquet_dataset(paths['validation'], "VALIDATION")
     
-    # Estrai feature columns
     feature_cols = [col for col in df_train.columns 
                    if col not in ['y_macro_encoded', 'y_specific']]
     
@@ -179,7 +164,6 @@ def load_processed_data(paths):
     print(f"   Test: {len(X_test):,} samples")
     print(f"   Val: {len(X_val):,} samples")
     
-    # Class distribution
     print(f"\n📊 Train Class Distribution:")
     unique, counts = np.unique(y_train, return_counts=True)
     for cls, count in zip(unique, counts):
@@ -203,45 +187,115 @@ def load_label_encoder(artifacts_path):
 # TRAINING
 # =============================================================================
 
-def train_decision_tree(X_train, y_train, max_depth=20):
+def train_mlp(X_train, y_train, hidden_layers=(256, 128, 64), 
+              max_iter=100, learning_rate_init=0.001):
     """
-    Train Decision Tree classifier.
+    Train Multi-Layer Perceptron (Neural Network).
+    
+    MLP ARCHITECTURE:
+    - Input layer: N features (auto)
+    - Hidden layers: Customizable (default: 256-128-64)
+    - Output layer: N classes (auto)
+    - Activation: ReLU (hidden), softmax (output)
+    - Optimizer: Adam
+    - Learning rate: 0.001 (default)
+    - Batch size: auto (min(200, n_samples))
+    - Early stopping: Enabled (validation-based)
+    
+    BEST PRACTICES per NIDS:
+    - Hidden layers: 2-3 layers sufficiente
+    - Neurons: Decrescente (256→128→64)
+    - ReLU activation: Migliore per network traffic
+    - Adam optimizer: Adaptive learning rate
+    - Early stopping: Previene overfitting
     
     Args:
-        X_train: Training features
+        X_train: Training features (MUST be scaled!)
         y_train: Training labels
-        max_depth: Max tree depth
+        hidden_layers: Tuple of hidden layer sizes
+        max_iter: Max epochs
+        learning_rate_init: Initial learning rate
     
     Returns:
-        Trained model
+        Trained MLP model
     """
-    print_header("TRAINING DECISION TREE")
+    print_header("TRAINING MLP (Neural Network)")
     
-    print(f"Hyperparameters:")
-    print(f"  max_depth: {max_depth}")
-    print(f"  min_samples_split: 20")
-    print(f"  min_samples_leaf: 10")
-    print(f"  criterion: gini")
-    print(f"  class_weight: balanced")
+    n_features = X_train.shape[1]
+    n_classes = len(np.unique(y_train))
+    
+    print(f"Network Architecture:")
+    print(f"  Input layer: {n_features} features")
+    for i, size in enumerate(hidden_layers):
+        print(f"  Hidden layer {i+1}: {size} neurons (ReLU)")
+    print(f"  Output layer: {n_classes} classes (softmax)")
+    
+    print(f"\nHyperparameters:")
+    print(f"  hidden_layer_sizes: {hidden_layers}")
+    print(f"  activation: relu")
+    print(f"  solver: adam")
+    print(f"  learning_rate_init: {learning_rate_init}")
+    print(f"  max_iter: {max_iter}")
+    print(f"  early_stopping: True")
+    print(f"  validation_fraction: 0.1")
+    print(f"  batch_size: auto")
+    print(f"  alpha: 0.0001 (L2 regularization)")
+    
+    # Calcola class weights per imbalance
+    class_counts = np.bincount(y_train)
+    n_samples = len(y_train)
+    
+    print(f"\nClass balance analysis:")
+    for cls_idx, count in enumerate(class_counts):
+        pct = count / n_samples * 100
+        print(f"  Class {cls_idx}: {count:>8,} ({pct:>5.2f}%)")
+    
+    # Check if data is scaled
+    print(f"\nData scaling check:")
+    x_min, x_max = X_train.min(), X_train.max()
+    x_mean, x_std = X_train.mean(), X_train.std()
+    print(f"  Range: [{x_min:.4f}, {x_max:.4f}]")
+    print(f"  Mean: {x_mean:.4f}, Std: {x_std:.4f}")
+    
+    if abs(x_mean) > 1.0 or x_std > 10.0:
+        print(f"  ⚠️ Data may not be properly scaled!")
+        print(f"  ⚠️ MLP works best with standardized features (mean=0, std=1)")
+    else:
+        print(f"  ✅ Data appears to be scaled properly")
     
     start_time = time.time()
     
-    model = DecisionTreeClassifier(
-        max_depth=max_depth,
-        min_samples_split=20,
-        min_samples_leaf=10,
-        criterion='gini',
-        class_weight='balanced',
-        random_state=42
+    model = MLPClassifier(
+        hidden_layer_sizes=hidden_layers,
+        activation='relu',
+        solver='adam',
+        alpha=0.0001,  # L2 regularization
+        batch_size='auto',  # min(200, n_samples)
+        learning_rate='adaptive',  # Adjusts when loss plateaus
+        learning_rate_init=learning_rate_init,
+        max_iter=max_iter,
+        shuffle=True,
+        random_state=42,
+        early_stopping=True,  # Stop when validation score stops improving
+        validation_fraction=0.1,
+        n_iter_no_change=10,  # Patience for early stopping
+        verbose=True
     )
     
-    print("\nTraining...")
+    print("\nTraining MLP (with early stopping)...")
+    print("This may take several minutes depending on dataset size...")
+    
     model.fit(X_train, y_train)
     
     elapsed = time.time() - start_time
-    print(f"✅ Complete in {elapsed:.2f}s")
-    print(f"   Tree depth: {model.get_depth()}")
-    print(f"   Leaves: {model.get_n_leaves()}")
+    
+    print(f"\n✅ Training complete!")
+    print(f"   Time: {elapsed:.1f}s ({elapsed/60:.1f} min)")
+    print(f"   Iterations: {model.n_iter_}")
+    print(f"   Final loss: {model.loss_:.6f}")
+    
+    if model.n_iter_ < max_iter:
+        print(f"   Early stopping triggered at iteration {model.n_iter_}")
     
     return model
 
@@ -251,17 +305,16 @@ def train_decision_tree(X_train, y_train, max_depth=20):
 
 def evaluate_model(model, X_train, X_test, X_val, y_train, y_test, y_val,
                    label_encoder, output_paths, dataset_type):
-    """Valuta modello su train/test/val."""
+    """Valuta modello."""
     print_header("MODEL EVALUATION")
     
-    # Predictions
+    print("Making predictions...")
     y_train_pred = model.predict(X_train)
     y_test_pred = model.predict(X_test)
     y_val_pred = model.predict(X_val)
     
     class_names = label_encoder.classes_
     
-    # Compute metrics
     metrics = {}
     for set_name, y_true, y_pred in [
         ('Train', y_train, y_train_pred),
@@ -275,7 +328,6 @@ def evaluate_model(model, X_train, X_test, X_val, y_train, y_test, y_val,
             'f1': f1_score(y_true, y_pred, average='weighted', zero_division=0)
         }
     
-    # Display results
     print("\n" + "-"*80)
     print(f"RESULTS - Dataset: {dataset_type.upper()}")
     print("-"*80)
@@ -287,7 +339,6 @@ def evaluate_model(model, X_train, X_test, X_val, y_train, y_test, y_val,
         test_val = metrics['Test'][metric]
         val_val = metrics['Val'][metric]
         
-        # Status check
         status = ""
         if metric == 'accuracy' and test_val >= 0.95:
             status = "✅"
@@ -303,7 +354,14 @@ def evaluate_model(model, X_train, X_test, X_val, y_train, y_test, y_val,
     
     print("-"*80)
     
-    # Classification report
+    # Overfitting check
+    acc_diff = metrics['Train']['accuracy'] - metrics['Test']['accuracy']
+    if acc_diff > 0.05:
+        print(f"\n⚠️ Possible overfitting (Train-Test diff: {acc_diff:.4f})")
+        print(f"   Consider: reducing max_iter, increasing alpha (regularization)")
+    else:
+        print(f"\n✅ Good generalization (Train-Test diff: {acc_diff:.4f})")
+    
     print("\n" + "-"*80)
     print("CLASSIFICATION REPORT (Test Set)")
     print("-"*80)
@@ -311,24 +369,22 @@ def evaluate_model(model, X_train, X_test, X_val, y_train, y_test, y_val,
                                 target_names=class_names,
                                 digits=4, zero_division=0))
     
-    # Confusion matrix
     cm = confusion_matrix(y_test, y_test_pred)
     
-    # Generate plots
-    generate_plots(cm, metrics, class_names, output_paths, dataset_type)
+    generate_plots(cm, metrics, class_names, model, output_paths, dataset_type)
     
     return metrics, cm
 
-def generate_plots(cm, metrics, class_names, output_paths, dataset_type):
-    """Genera plots di valutazione."""
+def generate_plots(cm, metrics, class_names, model, output_paths, dataset_type):
+    """Genera plots."""
     plots_dir = output_paths['plots']
     
     # 1. Confusion Matrix
     plt.figure(figsize=(12, 10))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Purples',
                 xticklabels=class_names, yticklabels=class_names,
                 cbar_kws={'label': 'Count'})
-    plt.title(f'Confusion Matrix - Decision Tree\nDataset: {dataset_type.upper()}',
+    plt.title(f'Confusion Matrix - MLP\nDataset: {dataset_type.upper()}',
               fontsize=14, fontweight='bold')
     plt.ylabel('True Label', fontsize=12)
     plt.xlabel('Predicted Label', fontsize=12)
@@ -351,19 +407,19 @@ def generate_plots(cm, metrics, class_names, output_paths, dataset_type):
     x = np.arange(len(metric_names))
     width = 0.25
     
-    ax.bar(x - width, train_values, width, label='Train', alpha=0.8)
-    ax.bar(x, test_values, width, label='Test', alpha=0.8)
-    ax.bar(x + width, val_values, width, label='Val', alpha=0.8)
+    ax.bar(x - width, train_values, width, label='Train', alpha=0.8, color='mediumpurple')
+    ax.bar(x, test_values, width, label='Test', alpha=0.8, color='darkviolet')
+    ax.bar(x + width, val_values, width, label='Val', alpha=0.8, color='plum')
     
     ax.set_ylabel('Score', fontsize=12)
-    ax.set_title(f'Metrics Comparison - Decision Tree\nDataset: {dataset_type.upper()}',
+    ax.set_title(f'Metrics Comparison - MLP\nDataset: {dataset_type.upper()}',
                  fontsize=14, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(metric_names)
     ax.legend()
     ax.set_ylim([0, 1.1])
     ax.grid(axis='y', alpha=0.3)
-    ax.axhline(y=0.95, color='r', linestyle='--', alpha=0.5)
+    ax.axhline(y=0.95, color='red', linestyle='--', alpha=0.5)
     ax.axhline(y=0.90, color='orange', linestyle='--', alpha=0.5)
     
     plt.tight_layout()
@@ -371,46 +427,22 @@ def generate_plots(cm, metrics, class_names, output_paths, dataset_type):
     plt.savefig(metrics_path, dpi=150, bbox_inches='tight')
     print(f"📊 Metrics comparison: {metrics_path}")
     plt.close()
-
-def plot_feature_importance(model, feature_names, output_paths, dataset_type, n_features=20):
-    """Visualizza feature importance."""
-    if not feature_names or len(feature_names) == 0:
-        return
     
-    print_header("FEATURE IMPORTANCE")
-    
-    importances = model.feature_importances_
-    indices = np.argsort(importances)[::-1][:n_features]
-    
-    print(f"\nTop {min(10, n_features)} Features:")
-    for i in range(min(10, n_features)):
-        idx = indices[i]
-        feat_name = feature_names[idx] if idx < len(feature_names) else f"Feature_{idx}"
-        print(f"{i+1:2d}. {feat_name:40s} {importances[idx]:.6f}")
-    
-    # Plot
-    fig, ax = plt.subplots(figsize=(12, 8))
-    plot_features = []
-    plot_importances = []
-    
-    for idx in indices:
-        if idx < len(feature_names):
-            plot_features.append(feature_names[idx])
-            plot_importances.append(importances[idx])
-    
-    ax.barh(range(len(plot_importances)), plot_importances[::-1], alpha=0.8)
-    ax.set_yticks(range(len(plot_features)))
-    ax.set_yticklabels(plot_features[::-1], fontsize=9)
-    ax.set_xlabel('Importance', fontsize=12)
-    ax.set_title(f'Top {n_features} Features - Decision Tree\nDataset: {dataset_type.upper()}',
+    # 3. Training Loss Curve
+    if hasattr(model, 'loss_curve_'):
+        plt.figure(figsize=(10, 6))
+        plt.plot(model.loss_curve_, color='darkviolet', linewidth=2)
+        plt.xlabel('Iteration', fontsize=12)
+        plt.ylabel('Loss', fontsize=12)
+        plt.title(f'Training Loss Curve - MLP\nDataset: {dataset_type.upper()}',
                  fontsize=14, fontweight='bold')
-    ax.grid(axis='x', alpha=0.3)
-    plt.tight_layout()
-    
-    feat_path = output_paths['plots'] / 'feature_importance.png'
-    plt.savefig(feat_path, dpi=150, bbox_inches='tight')
-    print(f"\n📊 Feature importance: {feat_path}")
-    plt.close()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        
+        loss_path = plots_dir / 'loss_curve.png'
+        plt.savefig(loss_path, dpi=150, bbox_inches='tight')
+        print(f"📊 Loss curve: {loss_path}")
+        plt.close()
 
 def save_model(model, output_paths, dataset_type):
     """Salva modello."""
@@ -422,6 +454,22 @@ def save_model(model, output_paths, dataset_type):
     size_mb = model_path.stat().st_size / 1024**2
     print(f"💾 Model: {model_path}")
     print(f"   Size: {size_mb:.2f} MB")
+    
+    # Save network architecture info
+    arch_info = {
+        'input_size': model.n_features_in_,
+        'hidden_layers': model.hidden_layer_sizes,
+        'output_size': model.n_outputs_,
+        'n_layers': model.n_layers_,
+        'n_iter': model.n_iter_,
+        'final_loss': float(model.loss_)
+    }
+    
+    arch_path = output_paths['plots'] / 'architecture.json'
+    with open(arch_path, 'w') as f:
+        json.dump(arch_info, f, indent=2)
+    
+    print(f"   Architecture info: {arch_path}")
 
 # =============================================================================
 # MAIN
@@ -431,55 +479,55 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description='Train Decision Tree (Parquet + Path Independent)'
+        description='Train MLP (Multi-Layer Perceptron Neural Network)'
     )
     parser.add_argument('--dataset-type', type=str, required=True,
                         choices=['original', 'smote', 'borderline', 'adasyn', 'ctgan'],
                         help='Dataset type')
-    parser.add_argument('--max-depth', type=int, default=20,
-                        help='Max tree depth (default: 20)')
+    parser.add_argument('--hidden-layers', type=str, default='256,128,64',
+                        help='Hidden layer sizes (comma-separated, default: 256,128,64)')
+    parser.add_argument('--max-iter', type=int, default=100,
+                        help='Max epochs (default: 100)')
+    parser.add_argument('--learning-rate', type=float, default=0.001,
+                        help='Initial learning rate (default: 0.001)')
     
     args = parser.parse_args()
     
-    print("\n" + "🌳"*40)
-    print(f"DECISION TREE TRAINING - {args.dataset_type.upper()}".center(80))
-    print("🌳"*40)
+    # Parse hidden layers
+    hidden_layers = tuple(map(int, args.hidden_layers.split(',')))
     
-    # Validate
+    print("\n" + "🧠"*40)
+    print(f"MLP TRAINING - {args.dataset_type.upper()}".center(80))
+    print("🧠"*40)
+    
     dataset_type = validate_dataset_type(args.dataset_type)
-    
-    # Get paths
     data_paths = get_paths(dataset_type)
     output_paths = get_output_paths(dataset_type)
     
     print(f"\n📂 Configuration:")
     print(f"   Dataset: {dataset_type}")
     print(f"   Train: {data_paths['train']}")
-    print(f"   Test: {data_paths['test']}")
-    print(f"   Val: {data_paths['validation']}")
+    print(f"   Hidden layers: {hidden_layers}")
+    print(f"   Max iterations: {args.max_iter}")
+    print(f"   Learning rate: {args.learning_rate}")
     print(f"   Output: {output_paths['model']}")
     
-    # Load
     X_train, X_test, X_val, y_train, y_test, y_val, feature_cols = load_processed_data(data_paths)
     label_encoder = load_label_encoder(data_paths['artifacts'])
     
-    # Train
-    model = train_decision_tree(X_train, y_train, max_depth=args.max_depth)
+    model = train_mlp(X_train, y_train,
+                     hidden_layers=hidden_layers,
+                     max_iter=args.max_iter,
+                     learning_rate_init=args.learning_rate)
     
-    # Evaluate
     metrics, cm = evaluate_model(
         model, X_train, X_test, X_val,
         y_train, y_test, y_val,
         label_encoder, output_paths, dataset_type
     )
     
-    # Feature importance
-    plot_feature_importance(model, feature_cols, output_paths, dataset_type)
-    
-    # Save
     save_model(model, output_paths, dataset_type)
     
-    # Summary
     print_header("✅ TRAINING COMPLETE!")
     
     test_metrics = metrics['Test']
@@ -493,6 +541,19 @@ def main():
         print("✅ MODEL MEETS ALL REQUIREMENTS!")
     else:
         print("⚠️ Model does not meet all requirements.")
+    
+    print(f"\n💡 Tips for improving MLP:")
+    if test_metrics['accuracy'] < 0.95:
+        print("   - Try more hidden layers or neurons")
+        print("   - Increase max_iter (more epochs)")
+        print("   - Try different learning rates (0.01, 0.0001)")
+    
+    acc_diff = metrics['Train']['accuracy'] - test_metrics['accuracy']
+    if acc_diff > 0.05:
+        print("   - Model is overfitting:")
+        print("     * Increase alpha (regularization)")
+        print("     * Reduce network size")
+        print("     * Use more training data")
     
     print(f"\n📁 Outputs:")
     print(f"   Model: {output_paths['model']}")

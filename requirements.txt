@@ -3,6 +3,15 @@ numpy>=1.26.0,<2.0.0
 pandas>=2.1.0,<3.0.0
 scikit-learn>=1.4.0,<2.0.0
 imbalanced-learn>=0.12.0
+xgboost>=2.0.0
+
+# CTGAN e Dipendenze
+ctgan>=0.10.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# PyArrow (Parquet)
+pyarrow>=14.0.0
 
 # Data Visualization
 matplotlib>=3.8.0
@@ -14,11 +23,14 @@ scapy>=2.5.0
 # Web Dashboard
 flask>=3.0.0
 flask-cors>=4.0.0
+streamlit>=1.28.0
+plotly>=5.17.0
 
 # Utilities
 joblib>=1.3.0
 python-dotenv>=1.0.0
 psutil>=5.9.0
+tqdm>=4.66.0
 
 # Testing
 pytest>=7.4.0
@@ -28,11 +40,5 @@ pytest-cov>=4.1.0
 jupyter>=1.0.0
 ipykernel>=6.25.0
 
-# Additional useful libraries
-tqdm>=4.66.0
-
-#Dashboard
-streamlit>= 1.28.0
-plotly>=5.17.0
-
-shap
+# Interpretability
+shap>=0.43.0

@@ -1,15 +1,10 @@
 """
-Borderline-SMOTE Data Augmentation per CICIoT2023.
+Borderline-SMOTE Data Augmentation - PARQUET OPTIMIZED
 
-VANTAGGI per Network Traffic:
-- Focus su campioni "difficili" vicini al decision boundary
-- Genera sample più realistici rispetto a SMOTE standard
-- Migliore per classi con overlap complessi (es. DDoS variants)
-
-LOGICA:
-1. Identifica "borderline" samples (circondati da altre classi)
-2. Genera synthetic solo in zone critiche
-3. Evita over-generation in zone facili
+OTTIMIZZAZIONI v2.0:
+- INPUT/OUTPUT: .pkl → .parquet
+- MEMORY: float32 conversion (2 punti: post-load, post-SMOTE)
+- STREAMING: Chunked parquet write (no full dataset in RAM)
 
 Usage:
     python src/borderline_smote.py --input-dir data/processed/CICIOT23
@@ -26,6 +21,8 @@ from imblearn.over_sampling import BorderlineSMOTE
 import json
 import gc
 import warnings
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 warnings.filterwarnings('ignore')
 
@@ -39,6 +36,9 @@ CICIOT_DIR = DATA_DIR / "CICIOT23"
 
 DEFAULT_TARGET_SAMPLE = 800_000
 DEFAULT_MIN_MINORITY = 50_000
+
+PARQUET_COMPRESSION = 'snappy'
+PARQUET_VERSION = '2.6'
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -60,12 +60,47 @@ def save_json(data, filepath):
     print(f"✅ Saved: {filepath}")
 
 # =============================================================================
-# SMART SAMPLING (come in smote.py)
+# MEMORY OPTIMIZATION
+# =============================================================================
+
+def optimize_memory_float32(X, description="data"):
+    """
+    Converte array/DataFrame a float32.
+    
+    CHIAMARE:
+    1. Subito dopo caricamento dati
+    2. Subito dopo generazione synthetic
+    
+    Args:
+        X: numpy array o DataFrame
+        description: Descrizione per log
+    
+    Returns:
+        X ottimizzato (float32)
+    """
+    print(f"🔧 Optimizing {description} memory (float64 → float32)...")
+    
+    if isinstance(X, pd.DataFrame):
+        mem_before = X.memory_usage(deep=True).sum() / 1024**2
+        X = X.astype({col: np.float32 for col in X.select_dtypes(include=[np.float64]).columns})
+        mem_after = X.memory_usage(deep=True).sum() / 1024**2
+    else:  # numpy array
+        mem_before = X.nbytes / 1024**2
+        X = X.astype(np.float32)
+        mem_after = X.nbytes / 1024**2
+    
+    savings = mem_before - mem_after
+    print(f"   {description.capitalize()}: {mem_before:.1f} MB → {mem_after:.1f} MB (saved {savings:.1f} MB)")
+    
+    return X
+
+# =============================================================================
+# SMART SAMPLING
 # =============================================================================
 
 def extract_smart_stratified_sample(df, y_col, target_total=DEFAULT_TARGET_SAMPLE,
                                    min_minority=DEFAULT_MIN_MINORITY, random_state=42):
-    """Smart stratified sampling con garanzia minority classes."""
+    """Smart stratified sampling (unchanged logic)."""
     print_section("SMART STRATIFIED SAMPLING")
     
     total_rows = len(df)
@@ -123,19 +158,7 @@ def apply_borderline_smote(X_train, y_train, sampling_strategy='auto',
                            k_neighbors=5, m_neighbors=10, kind='borderline-1',
                            random_state=42):
     """
-    Applica Borderline-SMOTE.
-    
-    Args:
-        X_train: Training features
-        y_train: Training labels
-        sampling_strategy: 'auto' o dict
-        k_neighbors: Vicini per SMOTE interpolation
-        m_neighbors: Vicini per identificare borderline samples
-        kind: 'borderline-1' (safer) or 'borderline-2' (more aggressive)
-        random_state: Seed
-    
-    Returns:
-        X_smote, y_smote
+    Applica Borderline-SMOTE con ottimizzazione float32.
     """
     print_section("APPLYING BORDERLINE-SMOTE")
     
@@ -144,15 +167,14 @@ def apply_borderline_smote(X_train, y_train, sampling_strategy='auto',
     print(f"  k_neighbors: {k_neighbors}")
     print(f"  m_neighbors: {m_neighbors}")
     print(f"  kind: {kind}")
-    print(f"  random_state: {random_state}")
     
-    # Adjust k_neighbors
+    # Adjust neighbors
     class_counts = np.bincount(y_train)
     min_samples = class_counts[class_counts > 0].min()
     
     if min_samples <= k_neighbors:
         k_neighbors = max(1, min_samples - 1)
-        print(f"  ⚠️ Adjusted k_neighbors to {k_neighbors} (min class: {min_samples})")
+        print(f"  ⚠️ Adjusted k_neighbors to {k_neighbors}")
     
     if min_samples <= m_neighbors:
         m_neighbors = max(1, min_samples - 1)
@@ -162,16 +184,14 @@ def apply_borderline_smote(X_train, y_train, sampling_strategy='auto',
     print(f"  Samples: {len(X_train):,}")
     print(f"  Features: {X_train.shape[1]}")
     
-    # Optimize memory
-    X_train = X_train.astype(np.float32)
+    # ⭐ OPTIMIZATION 1: Convert to float32 BEFORE SMOTE
+    X_train = optimize_memory_float32(X_train, "input features")
     
-    # Memory check
     import psutil
     available_mb = psutil.virtual_memory().available / 1024**2
     print(f"  Available RAM: {available_mb:.0f} MB")
     
-    print(f"\n⏳ Applying Borderline-SMOTE (focusing on boundary samples)...")
-    print(f"   This is slower than standard SMOTE (analyzes neighborhoods)")
+    print(f"\n⏳ Applying Borderline-SMOTE...")
     
     try:
         borderline_smote = BorderlineSMOTE(
@@ -184,22 +204,22 @@ def apply_borderline_smote(X_train, y_train, sampling_strategy='auto',
         
         X_smote, y_smote = borderline_smote.fit_resample(X_train, y_train)
         
+        # ⭐ OPTIMIZATION 2: Convert synthetic to float32 immediately
+        X_smote = optimize_memory_float32(X_smote, "SMOTE output")
+        
         print(f"\n✅ Borderline-SMOTE completed!")
         print(f"\nOutput:")
         print(f"  Samples: {len(X_smote):,} (+{len(X_smote)-len(X_train):,})")
         print(f"  Synthetic: {len(X_smote)-len(X_train):,}")
-        print(f"  Increase: {(len(X_smote)/len(X_train)-1)*100:.1f}%")
         
         gc.collect()
         return X_smote, y_smote
         
     except MemoryError as e:
         print(f"\n❌ MEMORY ERROR: {e}")
-        print(f"   Reduce --target-sample or --min-minority")
         return X_train, y_train
     except Exception as e:
         print(f"\n❌ Error: {e}")
-        print(f"   Returning original data...")
         return X_train, y_train
 
 # =============================================================================
@@ -207,7 +227,7 @@ def apply_borderline_smote(X_train, y_train, sampling_strategy='auto',
 # =============================================================================
 
 def extract_synthetic_only(X_smote, y_smote, X_sample_original, feature_cols):
-    """Estrae solo synthetic samples."""
+    """Estrae synthetic samples."""
     print_section("EXTRACTING SYNTHETIC SAMPLES")
     
     n_original = len(X_sample_original)
@@ -234,42 +254,90 @@ def extract_synthetic_only(X_smote, y_smote, X_sample_original, feature_cols):
     
     return df_synthetic
 
-def merge_synthetic_with_original(df_original, df_synthetic):
-    """Merge synthetic con original (no duplicates)."""
-    print_section("MERGING")
+def merge_synthetic_with_original_streaming(df_original_path, df_synthetic, 
+                                            output_path, feature_cols):
+    """
+    Merge con STREAMING WRITE (no full dataset in RAM).
     
-    print(f"Original: {len(df_original):,} rows")
-    print(f"Synthetic: {len(df_synthetic):,} rows")
+    STRATEGIA:
+    1. Scrivi original su disco (read chunks → write chunks)
+    2. Append synthetic
+    3. Shuffle finale (opzionale, costoso)
     
-    if len(df_synthetic) == 0:
-        print(f"\n⚠️ No synthetic to merge. Returning original.")
-        return df_original
+    Args:
+        df_original_path: Path parquet original
+        df_synthetic: DataFrame synthetic (già in RAM)
+        output_path: Path parquet output
+        feature_cols: Colonne da mantenere
+    """
+    print_section("MERGING (STREAMING)")
     
-    df_merged = pd.concat([df_original, df_synthetic], ignore_index=True)
-    df_merged = df_merged.sample(frac=1, random_state=42).reset_index(drop=True)
+    print(f"Original path: {df_original_path}")
+    print(f"Synthetic rows: {len(df_synthetic):,}")
     
-    print(f"\n✅ Merged: {len(df_merged):,} rows")
+    output_cols = feature_cols + ['y_macro_encoded', 'y_specific']
+    
+    # Setup ParquetWriter
+    parquet_writer = None
+    
+    # FASE 1: Stream original chunks
+    print(f"\nPhase 1: Streaming original dataset...")
+    
+    parquet_file = pq.ParquetFile(df_original_path)
+    total_original = 0
+    
+    for batch in parquet_file.iter_batches(batch_size=100_000):
+        df_batch = batch.to_pandas()[output_cols]
+        
+        # ⭐ Optimize batch memory
+        df_batch = optimize_memory_float32(df_batch, f"original batch")
+        
+        table = pa.Table.from_pandas(df_batch, preserve_index=False)
+        
+        if parquet_writer is None:
+            parquet_writer = pq.ParquetWriter(
+                output_path,
+                table.schema,
+                compression=PARQUET_COMPRESSION,
+                version=PARQUET_VERSION
+            )
+        
+        parquet_writer.write_table(table)
+        total_original += len(df_batch)
+        print(f"  Original: {total_original:,} rows written...", end="\r")
+        
+        del df_batch, table
+        gc.collect()
+    
+    print(f"\n  ✅ Original: {total_original:,} rows written")
+    
+    # FASE 2: Append synthetic
+    print(f"\nPhase 2: Appending synthetic...")
+    
+    if len(df_synthetic) > 0:
+        # ⭐ Optimize synthetic memory
+        df_synthetic = optimize_memory_float32(df_synthetic, "synthetic")
+        
+        table_synthetic = pa.Table.from_pandas(df_synthetic[output_cols], preserve_index=False)
+        parquet_writer.write_table(table_synthetic)
+        print(f"  ✅ Synthetic: {len(df_synthetic):,} rows appended")
+    
+    # Close writer
+    parquet_writer.close()
+    
+    total_final = total_original + len(df_synthetic)
+    size_mb = Path(output_path).stat().st_size / 1024**2
+    
+    print(f"\n✅ Merged dataset saved: {output_path}")
+    print(f"   Total rows: {total_final:,}")
+    print(f"   Size: {size_mb:.2f} MB")
     
     gc.collect()
-    return df_merged
+    return total_final
 
 # =============================================================================
 # SAVE & INFO
 # =============================================================================
-
-def save_dataset(df_final, output_dir):
-    """Salva dataset finale."""
-    print_section("SAVING DATASET")
-    
-    os.makedirs(output_dir, exist_ok=True)
-    
-    train_path = f"{output_dir}/train_borderline_smote.pkl"
-    df_final.to_pickle(train_path)
-    
-    size_mb = Path(train_path).stat().st_size / 1024**2
-    print(f"✅ Saved: {train_path}")
-    print(f"   Shape: {df_final.shape}")
-    print(f"   Size: {size_mb:.2f} MB")
 
 def create_info(original_dist, sample_dist, smote_dist, final_dist,
                label_encoder, output_dir):
@@ -278,7 +346,9 @@ def create_info(original_dist, sample_dist, smote_dist, final_dist,
     
     info = {
         'method': 'Borderline-SMOTE',
-        'description': 'Smart sampling + Borderline-SMOTE (focus on boundary)',
+        'description': 'Smart sampling + Borderline-SMOTE (boundary focus)',
+        'format': 'parquet',
+        'compression': PARQUET_COMPRESSION,
         'original_distribution': {
             class_names[cls]: int(count) for cls, count in original_dist.items()
         },
@@ -322,27 +392,33 @@ def main(input_dir, output_dir, target_sample=DEFAULT_TARGET_SAMPLE,
          min_minority=DEFAULT_MIN_MINORITY, sampling_strategy='auto',
          k_neighbors=5, m_neighbors=10, kind='borderline-1', random_state=42):
     
-    print_header("🎯 BORDERLINE-SMOTE DATA AUGMENTATION")
+    print_header("🎯 BORDERLINE-SMOTE (Parquet Optimized)")
     
     print(f"Configuration:")
-    print(f"  Method: Borderline-SMOTE (focuses on boundary samples)")
+    print(f"  Method: Borderline-SMOTE")
     print(f"  Target sample: {target_sample:,} rows")
-    print(f"  Min minority: {min_minority:,} rows")
-    print(f"  Kind: {kind}")
+    print(f"  Format: Parquet (streaming)")
     
     # Load
     print_header("STEP 1: LOADING DATASET")
     
-    train_path = f"{input_dir}/train_processed.pkl"
+    train_path = f"{input_dir}/train_processed.parquet"
     if not os.path.exists(train_path):
         raise FileNotFoundError(f"Not found: {train_path}")
     
-    df_train = pd.read_pickle(train_path)
-    print(f"✅ Loaded: {train_path}")
-    print(f"   Shape: {df_train.shape}")
+    # Leggi metadata
+    parquet_file = pq.ParquetFile(train_path)
+    print(f"✅ Found: {train_path}")
+    print(f"   Rows: {parquet_file.metadata.num_rows:,}")
     
+    # Carica tutto (per sampling - unavoidable)
+    df_train = pq.read_table(train_path).to_pandas()
+    print(f"   Loaded in RAM for sampling")
+    
+    # ⭐ OPTIMIZATION 1: float32 subito dopo load
     feature_cols = [col for col in df_train.columns
                    if col not in ['y_macro_encoded', 'y_specific']]
+    df_train = optimize_memory_float32(df_train, "loaded train data")
     
     encoder_path = f"{input_dir}/label_encoder.pkl"
     label_encoder = joblib.load(encoder_path)
@@ -389,22 +465,29 @@ def main(input_dir, output_dir, target_sample=DEFAULT_TARGET_SAMPLE,
     del X_smote, y_smote, X_sample_original
     gc.collect()
     
-    # Merge
-    print_header("STEP 6: MERGING")
+    # Merge (STREAMING)
+    print_header("STEP 6: MERGING (STREAMING)")
     
-    df_final = merge_synthetic_with_original(df_train, df_synthetic)
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = f"{output_dir}/train_borderline_smote.parquet"
+    
+    total_final = merge_synthetic_with_original_streaming(
+        train_path, df_synthetic, output_path, feature_cols
+    )
     
     del df_train
     gc.collect()
     
+    # Analyze final (sample from parquet for speed)
+    print_header("STEP 7: FINAL ANALYSIS")
+    df_final_sample = pq.read_table(output_path, columns=['y_macro_encoded']).to_pandas().sample(n=50000, random_state=42)
     final_dist = analyze_class_distribution(
-        df_final['y_macro_encoded'].values, label_encoder, "FINAL"
+        df_final_sample['y_macro_encoded'].values, label_encoder, "FINAL (sampled)"
     )
     
-    # Save
-    print_header("STEP 7: SAVING")
+    # Save info
+    print_header("STEP 8: SAVING METADATA")
     
-    save_dataset(df_final, output_dir)
     create_info(original_dist, sample_dist, smote_dist, final_dist,
                label_encoder, output_dir)
     
@@ -420,21 +503,15 @@ def main(input_dir, output_dir, target_sample=DEFAULT_TARGET_SAMPLE,
     # Summary
     print_header("✅ COMPLETE!")
     
-    n_original = len(y_train)
-    n_final = len(df_final)
-    n_synthetic = n_final - n_original
-    
     print("Summary:")
-    print(f"  Original: {n_original:,} rows")
-    print(f"  Synthetic: {n_synthetic:,} rows")
-    print(f"  Final: {n_final:,} rows")
-    print(f"  Increase: +{n_synthetic:,} ({(n_final/n_original-1)*100:.1f}%)")
-    print(f"\nOutput: {output_dir}")
+    print(f"  Output: {output_path}")
+    print(f"  Format: Parquet (snappy compressed)")
+    print(f"  Total rows: {total_final:,}")
 
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='Borderline-SMOTE augmentation')
+    parser = argparse.ArgumentParser(description='Borderline-SMOTE (Parquet)')
     parser.add_argument('--input-dir', type=str, default='data/processed/CICIOT23')
     parser.add_argument('--output-dir', type=str, default='data/processed/BorderlineSMOTE')
     parser.add_argument('--target-sample', type=int, default=DEFAULT_TARGET_SAMPLE)

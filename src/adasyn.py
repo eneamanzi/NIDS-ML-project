@@ -1,18 +1,15 @@
 """
-ADASYN (Adaptive Synthetic Sampling) per CICIoT2023.
+ADASYN (Adaptive Synthetic Sampling) - PARQUET OPTIMIZED
 
-VANTAGGI per Network Traffic:
+OTTIMIZZAZIONI v2.0:
+- INPUT/OUTPUT: .pkl → .parquet
+- MEMORY: float32 conversion (post-load + post-ADASYN)
+- STREAMING: Chunked parquet write (append mode)
+
+VANTAGGI ADASYN per Network Traffic:
 - Genera più sample per classi "più difficili" (densità adaptive)
 - Ottimo per minority classes estremamente piccole (BruteForce, Web)
 - Bilancia non solo numero ma anche difficoltà di apprendimento
-
-DIFFERENZA da Borderline-SMOTE:
-- Borderline: Focus su boundary
-- ADASYN: Focus su densità locale (più sample dove la classe è sparsa)
-
-QUANDO USARLO:
-- Se hai minority classes molto piccole (<1% del totale)
-- Se alcune classi sono sparse nello spazio feature
 
 Usage:
     python src/adasyn.py --input-dir data/processed/CICIOT23
@@ -29,6 +26,8 @@ from imblearn.over_sampling import ADASYN
 import json
 import gc
 import warnings
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 warnings.filterwarnings('ignore')
 
@@ -42,6 +41,9 @@ CICIOT_DIR = DATA_DIR / "CICIOT23"
 
 DEFAULT_TARGET_SAMPLE = 800_000
 DEFAULT_MIN_MINORITY = 50_000
+
+PARQUET_COMPRESSION = 'snappy'
+PARQUET_VERSION = '2.6'
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -63,12 +65,56 @@ def save_json(data, filepath):
     print(f"✅ Saved: {filepath}")
 
 # =============================================================================
+# MEMORY OPTIMIZATION
+# =============================================================================
+
+def optimize_memory_float32(X, description="data"):
+    """
+    Converte array/DataFrame a float32 per dimezzare RAM.
+    
+    CHIAMARE:
+    1. Subito dopo caricamento dati
+    2. Subito dopo generazione ADASYN
+    
+    Args:
+        X: numpy array o DataFrame
+        description: Descrizione per log
+    
+    Returns:
+        X ottimizzato (float32)
+    """
+    print(f"🔧 Optimizing {description} memory (float64 → float32)...")
+    
+    if isinstance(X, pd.DataFrame):
+        mem_before = X.memory_usage(deep=True).sum() / 1024**2
+        # Convert only float64 columns
+        float64_cols = X.select_dtypes(include=[np.float64]).columns
+        X = X.astype({col: np.float32 for col in float64_cols})
+        mem_after = X.memory_usage(deep=True).sum() / 1024**2
+    else:  # numpy array
+        mem_before = X.nbytes / 1024**2
+        if X.dtype == np.float64:
+            X = X.astype(np.float32)
+        mem_after = X.nbytes / 1024**2
+    
+    savings = mem_before - mem_after
+    if savings > 0:
+        print(f"   {description.capitalize()}: {mem_before:.1f} MB → {mem_after:.1f} MB (saved {savings:.1f} MB, {savings/mem_before*100:.1f}%)")
+    else:
+        print(f"   {description.capitalize()}: {mem_before:.1f} MB (already optimized)")
+    
+    return X
+
+# =============================================================================
 # SMART SAMPLING
 # =============================================================================
 
 def extract_smart_stratified_sample(df, y_col, target_total=DEFAULT_TARGET_SAMPLE,
                                    min_minority=DEFAULT_MIN_MINORITY, random_state=42):
-    """Smart stratified sampling."""
+    """
+    Smart stratified sampling con garanzia minority classes.
+    (Logic unchanged from original)
+    """
     print_section("SMART STRATIFIED SAMPLING")
     
     total_rows = len(df)
@@ -125,7 +171,7 @@ def extract_smart_stratified_sample(df, y_col, target_total=DEFAULT_TARGET_SAMPL
 def apply_adasyn(X_train, y_train, sampling_strategy='auto',
                 n_neighbors=5, random_state=42):
     """
-    Applica ADASYN (Adaptive Synthetic Sampling).
+    Applica ADASYN (Adaptive Synthetic Sampling) con ottimizzazione float32.
     
     LOGICA:
     1. Calcola densità locale per ogni minority sample
@@ -140,7 +186,7 @@ def apply_adasyn(X_train, y_train, sampling_strategy='auto',
         random_state: Seed
     
     Returns:
-        X_adasyn, y_adasyn
+        X_adasyn, y_adasyn (entrambi in float32)
     """
     print_section("APPLYING ADASYN")
     
@@ -161,15 +207,15 @@ def apply_adasyn(X_train, y_train, sampling_strategy='auto',
     print(f"  Samples: {len(X_train):,}")
     print(f"  Features: {X_train.shape[1]}")
     
-    # Optimize memory
-    X_train = X_train.astype(np.float32)
+    # ⭐ OPTIMIZATION 1: Convert to float32 BEFORE ADASYN
+    X_train = optimize_memory_float32(X_train, "input features")
     
     # Memory check
     import psutil
     available_mb = psutil.virtual_memory().available / 1024**2
     print(f"  Available RAM: {available_mb:.0f} MB")
     
-    # Check class distribution for ADASYN suitability
+    # Class distribution analysis
     print(f"\nClass size analysis (ADASYN excels with small minorities):")
     for cls_idx, count in enumerate(class_counts):
         if count > 0:
@@ -189,13 +235,16 @@ def apply_adasyn(X_train, y_train, sampling_strategy='auto',
         
         X_adasyn, y_adasyn = adasyn.fit_resample(X_train, y_train)
         
+        # ⭐ OPTIMIZATION 2: Convert ADASYN output to float32 immediately
+        X_adasyn = optimize_memory_float32(X_adasyn, "ADASYN output")
+        
         print(f"\n✅ ADASYN completed!")
         print(f"\nOutput:")
         print(f"  Samples: {len(X_adasyn):,} (+{len(X_adasyn)-len(X_train):,})")
         print(f"  Synthetic: {len(X_adasyn)-len(X_train):,}")
         print(f"  Increase: {(len(X_adasyn)/len(X_train)-1)*100:.1f}%")
         
-        # Mostra dove ADASYN ha generato più sample
+        # Adaptive generation analysis
         print(f"\nAdaptive generation analysis:")
         original_counts = np.bincount(y_train)
         adasyn_counts = np.bincount(y_adasyn)
@@ -257,42 +306,90 @@ def extract_synthetic_only(X_adasyn, y_adasyn, X_sample_original, feature_cols):
     
     return df_synthetic
 
-def merge_synthetic_with_original(df_original, df_synthetic):
-    """Merge synthetic con original."""
-    print_section("MERGING")
+def merge_synthetic_with_original_streaming(df_original_path, df_synthetic, 
+                                            output_path, feature_cols):
+    """
+    Merge con STREAMING WRITE (no full dataset in RAM).
     
-    print(f"Original: {len(df_original):,} rows")
-    print(f"Synthetic: {len(df_synthetic):,} rows")
+    STRATEGIA:
+    1. Stream original chunks → write to output
+    2. Append synthetic
     
-    if len(df_synthetic) == 0:
-        print(f"\n⚠️ No synthetic to merge. Returning original.")
-        return df_original
+    Args:
+        df_original_path: Path parquet original
+        df_synthetic: DataFrame synthetic (in RAM)
+        output_path: Path parquet output
+        feature_cols: Colonne features
+    """
+    print_section("MERGING (STREAMING)")
     
-    df_merged = pd.concat([df_original, df_synthetic], ignore_index=True)
-    df_merged = df_merged.sample(frac=1, random_state=42).reset_index(drop=True)
+    print(f"Original path: {df_original_path}")
+    print(f"Synthetic rows: {len(df_synthetic):,}")
     
-    print(f"\n✅ Merged: {len(df_merged):,} rows")
+    output_cols = feature_cols + ['y_macro_encoded', 'y_specific']
+    
+    # Setup ParquetWriter
+    parquet_writer = None
+    
+    # FASE 1: Stream original chunks
+    print(f"\nPhase 1: Streaming original dataset...")
+    
+    parquet_file = pq.ParquetFile(df_original_path)
+    total_original = 0
+    
+    for batch in parquet_file.iter_batches(batch_size=100_000):
+        df_batch = batch.to_pandas()[output_cols]
+        
+        # ⭐ Optimize batch memory
+        df_batch = optimize_memory_float32(df_batch, f"original batch")
+        
+        table = pa.Table.from_pandas(df_batch, preserve_index=False)
+        
+        if parquet_writer is None:
+            parquet_writer = pq.ParquetWriter(
+                output_path,
+                table.schema,
+                compression=PARQUET_COMPRESSION,
+                version=PARQUET_VERSION
+            )
+        
+        parquet_writer.write_table(table)
+        total_original += len(df_batch)
+        print(f"  Original: {total_original:,} rows written...", end="\r")
+        
+        del df_batch, table
+        gc.collect()
+    
+    print(f"\n  ✅ Original: {total_original:,} rows written")
+    
+    # FASE 2: Append synthetic
+    print(f"\nPhase 2: Appending synthetic...")
+    
+    if len(df_synthetic) > 0:
+        # ⭐ Optimize synthetic memory
+        df_synthetic = optimize_memory_float32(df_synthetic, "synthetic")
+        
+        table_synthetic = pa.Table.from_pandas(df_synthetic[output_cols], preserve_index=False)
+        parquet_writer.write_table(table_synthetic)
+        print(f"  ✅ Synthetic: {len(df_synthetic):,} rows appended")
+    
+    # Close writer
+    parquet_writer.close()
+    
+    total_final = total_original + len(df_synthetic)
+    size_mb = Path(output_path).stat().st_size / 1024**2
+    
+    print(f"\n✅ Merged dataset saved: {output_path}")
+    print(f"   Total rows: {total_final:,}")
+    print(f"   Size: {size_mb:.2f} MB")
+    print(f"   Format: Parquet (snappy compressed)")
     
     gc.collect()
-    return df_merged
+    return total_final
 
 # =============================================================================
 # SAVE & INFO
 # =============================================================================
-
-def save_dataset(df_final, output_dir):
-    """Salva dataset finale."""
-    print_section("SAVING DATASET")
-    
-    os.makedirs(output_dir, exist_ok=True)
-    
-    train_path = f"{output_dir}/train_adasyn.pkl"
-    df_final.to_pickle(train_path)
-    
-    size_mb = Path(train_path).stat().st_size / 1024**2
-    print(f"✅ Saved: {train_path}")
-    print(f"   Shape: {df_final.shape}")
-    print(f"   Size: {size_mb:.2f} MB")
 
 def create_info(original_dist, sample_dist, adasyn_dist, final_dist,
                label_encoder, output_dir):
@@ -302,6 +399,8 @@ def create_info(original_dist, sample_dist, adasyn_dist, final_dist,
     info = {
         'method': 'ADASYN',
         'description': 'Adaptive Synthetic Sampling (density-based generation)',
+        'format': 'parquet',
+        'compression': PARQUET_COMPRESSION,
         'original_distribution': {
             class_names[cls]: int(count) for cls, count in original_dist.items()
         },
@@ -345,27 +444,35 @@ def main(input_dir, output_dir, target_sample=DEFAULT_TARGET_SAMPLE,
          min_minority=DEFAULT_MIN_MINORITY, sampling_strategy='auto',
          n_neighbors=5, random_state=42):
     
-    print_header("🎯 ADASYN DATA AUGMENTATION")
+    print_header("🎯 ADASYN DATA AUGMENTATION (Parquet Optimized)")
     
     print(f"Configuration:")
     print(f"  Method: ADASYN (Adaptive Synthetic Sampling)")
     print(f"  Target sample: {target_sample:,} rows")
     print(f"  Min minority: {min_minority:,} rows")
+    print(f"  Format: Parquet (streaming)")
     print(f"  Adaptive: More samples in sparse regions")
     
     # Load
     print_header("STEP 1: LOADING DATASET")
     
-    train_path = f"{input_dir}/train_processed.pkl"
+    train_path = f"{input_dir}/train_processed.parquet"
     if not os.path.exists(train_path):
         raise FileNotFoundError(f"Not found: {train_path}")
     
-    df_train = pd.read_pickle(train_path)
-    print(f"✅ Loaded: {train_path}")
-    print(f"   Shape: {df_train.shape}")
+    # Leggi metadata
+    parquet_file = pq.ParquetFile(train_path)
+    print(f"✅ Found: {train_path}")
+    print(f"   Rows: {parquet_file.metadata.num_rows:,}")
     
+    # Carica tutto (per sampling - unavoidable)
+    df_train = pq.read_table(train_path).to_pandas()
+    print(f"   Loaded in RAM for sampling")
+    
+    # ⭐ OPTIMIZATION 1: float32 subito dopo load
     feature_cols = [col for col in df_train.columns
                    if col not in ['y_macro_encoded', 'y_specific']]
+    df_train = optimize_memory_float32(df_train, "loaded train data")
     
     encoder_path = f"{input_dir}/label_encoder.pkl"
     label_encoder = joblib.load(encoder_path)
@@ -412,22 +519,29 @@ def main(input_dir, output_dir, target_sample=DEFAULT_TARGET_SAMPLE,
     del X_adasyn, y_adasyn, X_sample_original
     gc.collect()
     
-    # Merge
-    print_header("STEP 6: MERGING")
+    # Merge (STREAMING)
+    print_header("STEP 6: MERGING (STREAMING)")
     
-    df_final = merge_synthetic_with_original(df_train, df_synthetic)
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = f"{output_dir}/train_adasyn.parquet"
+    
+    total_final = merge_synthetic_with_original_streaming(
+        train_path, df_synthetic, output_path, feature_cols
+    )
     
     del df_train
     gc.collect()
     
+    # Analyze final (sample from parquet)
+    print_header("STEP 7: FINAL ANALYSIS")
+    df_final_sample = pq.read_table(output_path, columns=['y_macro_encoded']).to_pandas().sample(n=50000, random_state=42)
     final_dist = analyze_class_distribution(
-        df_final['y_macro_encoded'].values, label_encoder, "FINAL"
+        df_final_sample['y_macro_encoded'].values, label_encoder, "FINAL (sampled)"
     )
     
-    # Save
-    print_header("STEP 7: SAVING")
+    # Save info
+    print_header("STEP 8: SAVING METADATA")
     
-    save_dataset(df_final, output_dir)
     create_info(original_dist, sample_dist, adasyn_dist, final_dist,
                label_encoder, output_dir)
     
@@ -443,21 +557,16 @@ def main(input_dir, output_dir, target_sample=DEFAULT_TARGET_SAMPLE,
     # Summary
     print_header("✅ COMPLETE!")
     
-    n_original = len(y_train)
-    n_final = len(df_final)
-    n_synthetic = n_final - n_original
-    
     print("Summary:")
-    print(f"  Original: {n_original:,} rows")
-    print(f"  Synthetic: {n_synthetic:,} rows")
-    print(f"  Final: {n_final:,} rows")
-    print(f"  Increase: +{n_synthetic:,} ({(n_final/n_original-1)*100:.1f}%)")
-    print(f"\nOutput: {output_dir}")
+    print(f"  Output: {output_path}")
+    print(f"  Format: Parquet (snappy compressed)")
+    print(f"  Total rows: {total_final:,}")
+    print(f"\n💡 ADASYN generates MORE samples in SPARSE areas (adaptive to difficulty)")
 
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='ADASYN augmentation')
+    parser = argparse.ArgumentParser(description='ADASYN augmentation (Parquet)')
     parser.add_argument('--input-dir', type=str, default='data/processed/CICIOT23')
     parser.add_argument('--output-dir', type=str, default='data/processed/ADASYN')
     parser.add_argument('--target-sample', type=int, default=DEFAULT_TARGET_SAMPLE)

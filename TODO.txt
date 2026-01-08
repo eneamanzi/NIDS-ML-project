@@ -1,11 +1,17 @@
-- controllare che preprocessing (es: scaler) sia tutto ok
 - sistemare i path
-- k neighbor smote
-- capire che algoritmi di train
-- formato diverso da pkl --> parquet
 - usare meglio jupyter magari se possibile fare qualcosa di interattivo dove mando un pacchetto e mi dice come lo classificherebbe (magari in caso aggiungerlo alla dashboard come ambiente interattivo)
-
-
+- controllare che negli script di train test e validation
+- progress bar
 
 
 dire di rimuovere dagli algoritmi di data augmentation i dati reali di partenza da cui crea quelli sintetici
+
+
+CAmbiare: i mdoelli vengono salvati in pkl. mettere anche loro in parquet
+
+
+Guardare lo sniffer che non va
+
+problema scheda video con ctgan
+
+testare nuova versione MLP
